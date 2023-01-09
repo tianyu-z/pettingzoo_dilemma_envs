@@ -8,7 +8,6 @@ import gym
 import numpy as np
 import random
 from gym.spaces import Discrete, Tuple
-from gym.spaces import prng
 
 
 class CoinGameVec:
@@ -43,26 +42,9 @@ class CoinGameVec:
 
     def reset(self):
         self.step_count = 0
-        # self.red_coin = prng.np_random.randint(self.NUM_AGENTS, size=self.batch_size)
-        # Agent and coin positions
-        # self.red_pos = prng.np_random.randint(
-        #     self.grid_size, size=(self.batch_size, 2)
-        # )  # 2, because it's a 2D grid world
-        # self.blue_pos = prng.np_random.randint(
-        #     self.grid_size, size=(self.batch_size, 2)
-        # )
         self.player_pos = np.zeros((self.batch_size, self.NUM_AGENTS, 2))
         self.coin_pos = np.zeros((self.batch_size, 2), dtype=np.int8)
         for i in range(self.batch_size):
-            # Make sure coins don't overlap
-            # while self._same_pos(self.red_pos[i], self.blue_pos[i]):
-            #     self.blue_pos[i] = prng.np_random.randint(self.grid_size, size=2)
-
-            # tmp = np.arange(len(self.grids))
-            # for j in range(self.NUM_AGENTS):
-            #     self.player_pos[i, j, :] = self.grids[
-            #         np.random.choice(tmp, 1, replace=False)[0]
-            #     ]
             self.grids_copy = self.grids.copy()
             random.shuffle(self.grids_copy)
             self.player_pos[i, :, :] = np.array(self.grids_copy[: self.NUM_AGENTS])
@@ -79,14 +61,6 @@ class CoinGameVec:
             self.player_coin[i] = (
                 1 + self.player_coin[i]
             ) % self.NUM_AGENTS  # next coin belong to next agent
-        # Make sure coin has a different position than the agents
-        # success = 0
-        # while success < self.NUM_AGENTS:  # number of agent
-        #     self.coin_pos[i] = np.random.randint(self.grid_size, size=(2))
-        #     for j in range(self.NUM_AGENTS):
-        #         success += 1 - self._same_pos(
-        #             self.player_pos[i, j, :], self.coin_pos[i]
-        #         )
         self.grids_copy = self.grids.copy()
         for j in range(self.NUM_AGENTS):
             self.grids_copy.remove(list(self.player_pos[i, j, :]))
@@ -96,17 +70,6 @@ class CoinGameVec:
 
     def _same_pos(self, x, y):
         return (x == y).all()
-
-    # def _generate_state(self):
-    #     state = np.zeros([self.batch_size] + self.ob_space_shape)
-    #     for i in range(self.batch_size):
-    #         state[i, 0, self.red_pos[i][0], self.red_pos[i][1]] = 1 # for each batch, the red player position is set to 1
-    #         state[i, 1, self.blue_pos[i][0], self.blue_pos[i][1]] = 1 # for each batch, the blue player position is set to 1
-    #         if self.red_coin[i]:
-    #             state[i, 2, self.coin_pos[i][0], self.coin_pos[i][1]] = 1 # for each batch, the red coin position is set to 1
-    #         else:
-    #             state[i, 3, self.coin_pos[i][0], self.coin_pos[i][1]] = 1 # for each batch, the blue coin position is set to 1
-    #     return state
 
     def _generate_state(self):
         state = np.zeros([self.batch_size] + self.ob_space_shape)
@@ -123,19 +86,25 @@ class CoinGameVec:
 
     def step(self, actions):
         for j in range(self.batch_size):
-            # ac0, ac1 = actions[j]  # actions.shape = (batch_size, num_agents)
-            # assert ac0 in {0, 1, 2, 3} and ac1 in {0, 1, 2, 3}
             for i in range(self.NUM_AGENTS):
                 assert actions[j][i] in {0, 1, 2, 3}
 
             # Move players
             for i in range(self.NUM_AGENTS):
-                self.player_pos[j, i] = (
+                potential_pos = (
                     self.player_pos[j, i] + self.MOVES[actions[j][i]]
                 ) % self.grid_size
+                player_overlap_checker = list((self.player_pos[j] - potential_pos))
+                overlap = False
+                for x in player_overlap_checker:
+                    if (np.array([0, 0]) == x).all():
+                        overlap = True
+                        break
+                if not overlap:
+                    self.player_pos[j, i] = potential_pos
+                    # otherwise stay still
 
         # Compute rewards
-        # reward_red, reward_blue = [], []
         reward = np.zeros((self.batch_size, self.NUM_AGENTS))
         for i in range(self.batch_size):
             generate = False
@@ -150,34 +119,8 @@ class CoinGameVec:
                                 generate = True
                                 reward[i, j] -= 2
                                 reward[i, k] += 1
-            # if self.red_coin[i]:
-            #     if self._same_pos(self.red_pos[i], self.coin_pos[i]):
-            #         generate = True
-            #         reward_red.append(1)
-            #         reward_blue.append(0)
-            #     elif self._same_pos(self.blue_pos[i], self.coin_pos[i]):
-            #         generate = True
-            #         reward_red.append(-2)
-            #         reward_blue.append(1)
-            #     else:
-            #         reward_red.append(0)
-            #         reward_blue.append(0)
-
-            # else:
-            #     if self._same_pos(self.red_pos[i], self.coin_pos[i]):
-            #         generate = True
-            #         reward_red.append(1)
-            #         reward_blue.append(-2)
-            #     elif self._same_pos(self.blue_pos[i], self.coin_pos[i]):
-            #         generate = True
-            #         reward_red.append(0)
-            #         reward_blue.append(1)
-            #     else:
-            #         reward_red.append(0)
-            #         reward_blue.append(0)
-
-            if generate:
-                self._generate_coin(i)
+                if generate:
+                    self._generate_coin(i)
 
         # reward = [np.array(reward_red), np.array(reward_blue)]
         self.step_count += 1

@@ -33,7 +33,6 @@ class raw_env(AECEnv):
         "render_modes": ["human"],
         "name": "simple_pd_v0",
         "is_parallelizable": True,
-        "render_fps": 2,
     }
 
     def __init__(self, game="pd", num_actions=2, max_cycles=15, render_mode=None):
