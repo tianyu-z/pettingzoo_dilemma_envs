@@ -145,9 +145,7 @@ class raw_env(AECEnv):
 
             # observe the current state
             for i in self.agents:
-                self.observations[i] = self.state[
-                    self.agents[1 - self.agent_name_mapping[i]]
-                ]
+                self.observations[i] = list(self.state.values()) # TODO: consider switching the board 
         else:
             self.state[self.agents[1 - self.agent_name_mapping[agent]]] = self._none
             self._clear_rewards()

@@ -1,0 +1,6 @@
+pygame
+pymunk
+torch
+torchvision
+pettingzoo
+gymnasium
