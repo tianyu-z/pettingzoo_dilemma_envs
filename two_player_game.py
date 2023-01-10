@@ -28,7 +28,8 @@ gamma = 0.99 # Discount factor used in the Bellman equation
 batch_size = 32 # Number of experiences to sample in each training batch
 stack_size = 4 # Number of frames to stack together in a state
 frame_size = (64, 64) # Height and width of each frame in the stack
-max_cycles = 125 # Maximum number of cycles to run the training for
+max_cycles = 100 # Maximum number of cycles to run the training for
+end_step   = max_cycles
 total_episodes = 2 # Number of episodes to run the trained model for during evaluation
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
@@ -38,8 +39,8 @@ if __name__ == "__main__":
 
 
     """ ENV SETUP """
-    env = parallel_env(render_mode="human")
-    parallel_api_test(env, num_cycles=1000)
+    env = parallel_env(render_mode="human", max_cycles=max_cycles)
+    # parallel_api_test(env, num_cycles=1000)
     obs = env.reset()
 
     num_agents = len(env.possible_agents)
@@ -54,7 +55,7 @@ if __name__ == "__main__":
     optimizers = {agent : optim.Adam(agents[agent].parameters(), lr=0.001, eps=1e-5) for agent in env.agents}
 
     """ ALGO LOGIC: EPISODE STORAGE"""
-    end_step = 0
+    # end_step = 0
     total_episodic_return = 0
     rb_obs = torch.zeros((max_cycles, num_agents, num_observations)).to(device) # stores stacked observations for each agent
     rb_actions = torch.zeros((max_cycles, num_agents)).to(device) # stores actions taken by each agent
@@ -120,7 +121,7 @@ if __name__ == "__main__":
         # bootstrap value if not done
         with torch.no_grad():
             rb_advantages = torch.zeros_like(rb_rewards).to(device)
-            for t in reversed(range(end_step)):
+            for t in reversed(range(end_step - 1)):
                 delta = (
                     rb_rewards[t]
                     + gamma * rb_values[t + 1] * rb_terms[t + 1]
