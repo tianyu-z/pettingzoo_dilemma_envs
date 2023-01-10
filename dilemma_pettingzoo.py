@@ -80,7 +80,7 @@ class raw_env(AECEnv):
         self.infos = {agent: {} for agent in self.agents}
 
         self.state = {agent: self._none for agent in self.agents}
-        self.observations = {agent: self._none for agent in self.agents}
+        self.observations = {agent: [self._none]*len(self.possible_agents) for agent in self.agents}
 
         self.history = [0] * (2 * 5)
 

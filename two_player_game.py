@@ -79,25 +79,26 @@ if __name__ == "__main__":
             for step in range(0, max_cycles):
 
                 # rollover the observation
-                obs = batchify_obs(next_obs, device)
-                print("batchified obs: ", obs)
 
                 policy_outputs = {}
                 for agent in agents:
-                  actions, logprobs, _, values = agents[agent].get_action_and_value(obs)
-                  policy_outputs[agent] ={
+                    obs = batchify_obs(next_obs[agent], device)
+                    obs = obs.float() #hotpatch, TODO: fix batchify to return floats
+                    actions, logprobs, _, values = agents[agent].get_action_and_value(obs, action=None)
+                    policy_outputs[agent] ={
                       "actions": actions, 
                       "logprobs": logprobs, 
                       "_": _, 
                       "values": values
-                  }
+                    }
 
                 # join separate action tensors from each agent
                 actions = torch.cat([policy_outputs[agent]["actions"].view(1) for agent in agents])
 
                 # execute the environment and log data
+                actions_dict = unbatchify(actions, env)
                 next_obs, rewards, terms, _, _ = env.step(
-                    unbatchify(actions, env)
+                    actions_dict
                 )
 
                 # add to episode storage

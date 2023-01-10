@@ -19,8 +19,6 @@ class Agent(nn.Module):
         self.network = nn.Sequential(
             self._layer_init(nn.Linear(2, 512)),
             nn.ReLU(),
-            # add a softmax layer to convert the logits to probabilities
-            # nn.Softmax(dim=1)
         )
         self.actor = self._layer_init(nn.Linear(512, num_actions), std=0.01)
         self.critic = self._layer_init(nn.Linear(512, 1))
