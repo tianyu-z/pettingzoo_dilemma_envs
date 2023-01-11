@@ -231,7 +231,7 @@ class raw_env(AECEnv):
         potential_position = (
             self.player_pos[self.agent_name_mapping[agent], :] + self._moves[action]
         ) % self.grid_size
-        if potential_position not in self.player_pos:
+        if potential_position.tolist() not in self.player_pos.tolist():
             self.player_pos[self.agent_name_mapping[agent], :] = potential_position
         # if this grid already has an agent, stay still
 
@@ -295,3 +295,4 @@ if __name__ == "__main__":
     #     # If the game is over, reset the environment
     #     if done:
     #         obs = env.reset()
+    
