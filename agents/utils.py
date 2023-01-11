@@ -17,7 +17,7 @@ os.environ["SDL_VIDEODRIVER"] = "dummy"
 def batchify_obs(obs, device):
     """Converts PZ style observations to batch of torch arrays."""
     # convert to list of np arrays
-    # obs = np.stack([obs[a] for a in obs], axis=0)
+    obs = np.stack([obs[a] for a in obs], axis=0)
     # convert to torch
     obs = torch.tensor(obs).to(device)
 
@@ -36,7 +36,7 @@ def batchify(x, device):
 
 def unbatchify(actions, env):
     """Converts np array to PZ style arguments."""
-    print("actions batchified : ", actions)
+    # print("actions batchified : ", actions)
     actions = actions.cpu().numpy()
     actions = {a: actions[i] for i, a in enumerate(env.possible_agents)}
 

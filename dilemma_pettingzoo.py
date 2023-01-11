@@ -104,7 +104,7 @@ class raw_env(AECEnv):
             )
         else:
             string = "Game over"
-        print(string)
+        # print(string)
 
     def observe(self, agent):
         # observation of one agent is the previous state of the other
