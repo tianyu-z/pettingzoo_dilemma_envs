@@ -105,7 +105,7 @@ class raw_env(AECEnv):
 
     def _generate_coin(self, randomize=False):
         self.player_coin_old = self.player_coin
-        self.coin_pos_old = self.coin_pos.copy()
+
         if randomize:
             self.player_coin = np.random.randint(
                 self.nb_players
@@ -248,12 +248,13 @@ class raw_env(AECEnv):
                         self.generate_new_coin = True
                         self.rewards[agent] -= 2
                         self.rewards["player_" + str(k)] += 1
-        # if a coin is collected and all agents finish their actions, regenerate the coin
-        if self._agent_selector.is_last() and self.generate_new_coin:
-            self._generate_coin((self.randomize_coin))
 
         # when all agent is done, update state and generate observations
         if self._agent_selector.is_last():
+            # if a coin is collected and all agents finish their actions, regenerate the coin
+            self.coin_pos_old = self.coin_pos.copy()
+            if self.generate_new_coin:
+                self._generate_coin((self.randomize_coin))
             self.num_moves += 1
             self.truncations = {
                 agent: self.num_moves >= self.max_cycles for agent in self.agents
