@@ -9,7 +9,7 @@ from gymnasium.spaces import Discrete
 from pettingzoo import AECEnv
 from pettingzoo.utils import agent_selector, wrappers
 from pettingzoo.utils.conversions import parallel_wrapper_fn
-SEED = 0
+SEED = 42
 
 def env(**kwargs):
     env = raw_env(**kwargs)
@@ -94,7 +94,10 @@ class raw_env(AECEnv):
         # aux variables during steps
         self.actions_taken = {agent: None for agent in self.agents}
         self.generate_new_coin = False
-
+        if randomize_coin:
+            self.agent_picker_buffer = np.array(range(self.nb_players))
+            random.shuffle(self.agent_picker_buffer)
+            self.agent_picker_idx = 0
         self.reinit()
 
     def observation_space(self, agent):
@@ -107,9 +110,11 @@ class raw_env(AECEnv):
         self.player_coin_old = self.player_coin
 
         if randomize:
-            self.player_coin = np.random.randint(
-                self.nb_players
-            )  # next coin belong to a random agent
+            # next coin belong to a random agent
+            self.player_coin = self.agent_picker_buffer[self.agent_picker_idx % self.nb_players]
+            self.agent_picker_idx += 1
+            if self.agent_picker_idx % self.nb_players == 0:
+                random.shuffle(self.agent_picker_buffer)
         else:
             self.player_coin = (
                 1 + self.player_coin
@@ -204,9 +209,10 @@ class raw_env(AECEnv):
                     agent, self.player_pos[self.agent_name_mapping[agent], :]
                 )
             )
-            for a in self.agents:
-                print("Agent {} reward after action: {} ".format(a, self.rewards[a]))
-                print("Agent {} cumulative rewards after action: {} ".format(a, self._cumulative_rewards[a]))
+            if self._agent_selector.is_last():
+                for a in self.agents:
+                    print("Agent {} reward after action: {} ".format(a, self.rewards[a]))
+                    print("Agent {} cumulative rewards after action: {} ".format(a, self._cumulative_rewards[a]))
         else:
             print("Game over")
         print("\n")
@@ -295,14 +301,14 @@ if __name__ == "__main__":
         np.random.seed(SEED)
     # from pettingzoo.test import parallel_api_test
 
-    env = parallel_env(render_mode="human")
+    env = parallel_env(render_mode="human", nb_players=3, grid_size=4, max_cycles=1000, randomize_coin=True)
     # parallel_api_test(env, num_cycles=1000)
 
     # Reset the environment and get the initial observation
     obs = env.reset()
-    nb_agent = 2
+    nb_agent = 3
     # Run the environment for 10 steps
-    for _ in range(10):
+    for _ in range(1000):
         # Sample a random action
         actions = {"player_"+str(i): np.random.randint(4) for i in range(nb_agent)}
 
