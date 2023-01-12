@@ -6,7 +6,10 @@ import gymnasium
 import numpy as np
 import random
 from gymnasium.spaces import Discrete
-
+SEED = 0
+if SEED is not None:
+    random.seed(SEED)
+    np.random.seed(SEED)
 from pettingzoo import AECEnv
 from pettingzoo.utils import agent_selector, wrappers
 from pettingzoo.utils.conversions import parallel_wrapper_fn
@@ -210,7 +213,7 @@ class raw_env(AECEnv):
     def close(self):
         pass
 
-    def reset(self, seed=None, return_info=False, options=None):
+    def reset(self, seed=SEED, return_info=False, options=None):
         self.reinit()
 
     def _same_pos(self, x, y):
