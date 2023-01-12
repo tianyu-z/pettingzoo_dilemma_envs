@@ -6,14 +6,10 @@ import gymnasium
 import numpy as np
 import random
 from gymnasium.spaces import Discrete
-SEED = 0
-if SEED is not None:
-    random.seed(SEED)
-    np.random.seed(SEED)
 from pettingzoo import AECEnv
 from pettingzoo.utils import agent_selector, wrappers
 from pettingzoo.utils.conversions import parallel_wrapper_fn
-
+SEED = 0
 
 def env(**kwargs):
     env = raw_env(**kwargs)
@@ -284,6 +280,9 @@ class raw_env(AECEnv):
 
 
 if __name__ == "__main__":
+    if SEED is not None:
+        random.seed(SEED)
+        np.random.seed(SEED)
     from pettingzoo.test import parallel_api_test
 
     env = parallel_env(render_mode="human")
