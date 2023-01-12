@@ -82,7 +82,8 @@ class raw_env(AECEnv):
             for agent in self.agents
         }  # init the location of agents and the coin player_x, player_y, coin_x, coin_y, has_coin
         self.observations = {agent: None for agent in self.agents}
-
+        self.coin_pos = -1 * np.ones(2, dtype=np.int8)
+        self.coin_pos_old = self.coin_pos.copy()
         self.player_pos = -1 * np.ones(
             (self.nb_players, 2)
         )  # the x-coord and y-coord of the player
@@ -186,22 +187,28 @@ class raw_env(AECEnv):
                 "You are calling render method without specifying any render mode."
             )
             return
-        print("Coin position: {}".format(self.coin_pos_old))
-        print("Coin belongs to: {}".format(self.player_coin_old))
+        print("This is a {} round".format(self.num_moves))
+        print("Coin (before taken) position: {}".format(self.coin_pos))
+        print("Coin (before taken) belongs to: {}".format(self.player_coin))
+        agent = self.agent_selection
         if len(self.agents) == self.nb_players:
-            print("Players information: ")
-            for agent in self.agents:
-                print(
-                    "Agent {} position: {} ".format(
-                        agent, self.player_pos[self.agent_name_mapping[agent], :]
-                    )
+            # print("Players information: ")
+            print(
+                "Agent {} position before action: {} ".format(
+                    agent, self.player_pos_old[self.agent_name_mapping[agent], :]
                 )
-                print(
-                    "Agent {} action: {} ".format(
-                        agent, self._moves[self.actions_taken[agent]]
-                    )
+            )
+            print(
+                "Agent {} action: {} ".format(
+                    agent, self._moves[self.actions_taken[agent]]
                 )
-                print("Agent {} reward: {} ".format(agent, self.rewards[agent]))
+            )
+            print(
+                "Agent {} position after action: {} ".format(
+                    agent, self.player_pos[self.agent_name_mapping[agent], :]
+                )
+            )
+            print("Agent {} reward after action: {} ".format(agent, self.rewards[agent]))
         else:
             print("Game over")
         print("\n")
@@ -231,6 +238,7 @@ class raw_env(AECEnv):
 
         # self.state[self.agent_selection] = action
         self.actions_taken[agent] = action
+        self.player_pos_old = self.player_pos.copy()
         potential_position = (
             self.player_pos[self.agent_name_mapping[agent], :] + self._moves[action]
         ) % self.grid_size
@@ -252,6 +260,9 @@ class raw_env(AECEnv):
                         self.rewards[agent] -= 2
                         self.rewards["player_" + str(k)] += 1
 
+        if self.render_mode == "human":
+            self.render()
+
         # when all agent is done, update state and generate observations
         if self._agent_selector.is_last():
             # if a coin is collected and all agents finish their actions, regenerate the coin
@@ -265,8 +276,7 @@ class raw_env(AECEnv):
             self._generate_state()
             # observe the current states
             self._generate_observation()  # each agent knows the all the state, action and reward of all the agents
-            if self.render_mode == "human":
-                self.render()
+
 
         self._cumulative_rewards[self.agent_selection] = 0
         self.agent_selection = self._agent_selector.next()
