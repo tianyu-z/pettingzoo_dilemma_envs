@@ -231,8 +231,10 @@ class raw_env(AECEnv):
             return
 
         agent = self.agent_selection
-
+        
         # self.state[self.agent_selection] = action
+        if self._agent_selector.is_first():
+            self.rewards = {agent: 0 for agent in self.agents}
         self.actions_taken[agent] = action
         self.player_pos_old = self.player_pos.copy()
         potential_position = (
@@ -248,7 +250,7 @@ class raw_env(AECEnv):
                 self.player_pos[self.agent_name_mapping[agent]], self.coin_pos
             ):
                 self.generate_new_coin = True
-                self.rewards[agent] = 1
+                self.rewards[agent] += 1
             for k in range(self.nb_players):
                 if k != self.agent_name_mapping[agent]:
                     if self._same_pos(self.player_pos[k], self.coin_pos):
