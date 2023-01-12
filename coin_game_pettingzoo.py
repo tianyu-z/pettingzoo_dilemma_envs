@@ -302,6 +302,6 @@ if __name__ == "__main__":
         # print(rewards)
 
     #     # If the game is over, reset the environment
-        if terminations:
+        if terminations["player_0"]:
             obs = env.reset()
     
