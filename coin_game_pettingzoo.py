@@ -299,7 +299,7 @@ if __name__ == "__main__":
         observations, rewards, terminations, truncations, infos = env.step(actions)
 
     #     # Print the reward
-        print(rewards)
+        # print(rewards)
 
     #     # If the game is over, reset the environment
         if terminations:
