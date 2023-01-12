@@ -204,7 +204,8 @@ class raw_env(AECEnv):
                     agent, self.player_pos[self.agent_name_mapping[agent], :]
                 )
             )
-            print("Agent {} reward after action: {} ".format(agent, self.rewards[agent]))
+            for a in self.agents:
+                print("Agent {} reward after action: {} ".format(a, self.rewards[a]))
         else:
             print("Game over")
         print("\n")
