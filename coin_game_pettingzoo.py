@@ -206,6 +206,7 @@ class raw_env(AECEnv):
             )
             for a in self.agents:
                 print("Agent {} reward after action: {} ".format(a, self.rewards[a]))
+                print("Agent {} cumulative rewards after action: {} ".format(a, self._cumulative_rewards[a]))
         else:
             print("Game over")
         print("\n")
@@ -230,12 +231,12 @@ class raw_env(AECEnv):
         ):
             self._was_dead_step(action)
             return
-
         agent = self.agent_selection
-        
-        # self.state[self.agent_selection] = action
         if self._agent_selector.is_first():
             self.rewards = {agent: 0 for agent in self.agents}
+        # self.state[self.agent_selection] = action
+        self.generate_new_coin = False
+
         self.actions_taken[agent] = action
         self.player_pos_old = self.player_pos.copy()
         potential_position = (
@@ -245,26 +246,32 @@ class raw_env(AECEnv):
             self.player_pos[self.agent_name_mapping[agent], :] = potential_position
         # if this grid already has an agent, stay still
 
-        # compute rewards
-        if self.player_coin == self.agent_name_mapping[agent]:
-            if self._same_pos(
-                self.player_pos[self.agent_name_mapping[agent]], self.coin_pos
-            ):
-                self.generate_new_coin = True
-                self.rewards[agent] += 1
-            for k in range(self.nb_players):
-                if k != self.agent_name_mapping[agent]:
-                    if self._same_pos(self.player_pos[k], self.coin_pos):
+        # when all agent is done, update state and generate observations
+        if self._agent_selector.is_last():
+            self.rewards = {agent: 0 for agent in self.agents}
+            for a in self.agents:
+                # compute rewards
+                if self.player_coin == self.agent_name_mapping[a]:
+                    if self._same_pos(
+                        self.player_pos[self.agent_name_mapping[a]], self.coin_pos
+                    ):
                         self.generate_new_coin = True
-                        self.rewards[agent] -= 2
-                        self.rewards["player_" + str(k)] += 1
+                        self.rewards[a] += 1
+                    for k in range(self.nb_players):
+                        if k != self.agent_name_mapping[a]:
+                            if self._same_pos(self.player_pos[k], self.coin_pos):
+                                self.generate_new_coin = True
+                                self.rewards[a] -= 2
+                                self.rewards["player_" + str(k)] += 1
+            # if a coin is collected and all agents finish their actions, regenerate the coin
+
+        if self._agent_selector.is_last():
+            self._accumulate_rewards()
 
         if self.render_mode == "human":
             self.render()
-
-        # when all agent is done, update state and generate observations
+        
         if self._agent_selector.is_last():
-            # if a coin is collected and all agents finish their actions, regenerate the coin
             self.coin_pos_old = self.coin_pos.copy()
             if self.generate_new_coin:
                 self._generate_coin((self.randomize_coin))
@@ -276,9 +283,10 @@ class raw_env(AECEnv):
             # observe the current states
             self._generate_observation()  # each agent knows the all the state, action and reward of all the agents
 
-        self._cumulative_rewards[self.agent_selection] = 0
+        # self._cumulative_rewards[self.agent_selection] = 0
+
         self.agent_selection = self._agent_selector.next()
-        self._accumulate_rewards()
+
 
 
 if __name__ == "__main__":
