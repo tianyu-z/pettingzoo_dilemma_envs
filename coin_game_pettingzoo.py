@@ -273,7 +273,6 @@ class raw_env(AECEnv):
             # observe the current states
             self._generate_observation()  # each agent knows the all the state, action and reward of all the agents
 
-
         self._cumulative_rewards[self.agent_selection] = 0
         self.agent_selection = self._agent_selector.next()
         self._accumulate_rewards()
@@ -283,28 +282,26 @@ if __name__ == "__main__":
     if SEED is not None:
         random.seed(SEED)
         np.random.seed(SEED)
-    from pettingzoo.test import parallel_api_test
+    # from pettingzoo.test import parallel_api_test
 
     env = parallel_env(render_mode="human")
-    parallel_api_test(env, num_cycles=1000)
+    # parallel_api_test(env, num_cycles=1000)
 
     # Reset the environment and get the initial observation
     obs = env.reset()
-
+    nb_agent = 2
     # Run the environment for 10 steps
-    # for _ in range(10):
-    #     # Sample a random action
-    #     action_a = env.action_spaces["player_0"].sample()
-    #     action_b = env.action_spaces["player_1"].sample()
-    #     actions = (action_a, action_b)
+    for _ in range(10):
+        # Sample a random action
+        actions = {"player_"+str(i): np.random.randint(4) for i in range(nb_agent)}
 
     #     # Step the environment and get the reward, observation, and done flag
-    #     obs, reward, done, _ = env.step(actions)
+        observations, rewards, terminations, truncations, infos = env.step(actions)
 
     #     # Print the reward
-    #     print(reward)
+        print(rewards)
 
     #     # If the game is over, reset the environment
-    #     if done:
-    #         obs = env.reset()
+        if terminations:
+            obs = env.reset()
     
