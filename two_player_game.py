@@ -18,31 +18,32 @@ from games import Game, Prisoners_Dilemma, Samaritans_Dilemma, Stag_Hunt, Chicke
 from dilemma_pettingzoo import raw_env, env, parallel_env
 from agents.agent import Agent
 from agents.utils import batchify_obs, batchify, unbatchify
+from config import parse_args
 
 """ALGORITHM PARAMS"""
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-ent_coef = 0.1 # Coefficient for the entropy term in the loss function
-vf_coef = 0.1 # Coefficient for the value function term in the loss function
-clip_coef = 0.1 # Coefficient for the gradient clipping term in the loss function
-gamma = 0.99 # Discount factor used in the Bellman equation
-batch_size = 32 # Number of experiences to sample in each training batch
-stack_size = 4 # Number of frames to stack together in a state
-frame_size = (64, 64) # Height and width of each frame in the stack
-max_cycles = 100 # Maximum number of cycles to run the training for
-end_step   = max_cycles
-total_episodes = 10 # Number of episodes to run the trained model for during evaluation
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
 #####################
 
 if __name__ == "__main__":
-
-
-    """ ENV SETUP """
-    env = parallel_env(render_mode="human", max_cycles=max_cycles)
+    args = parse_args()
+    print("Exp setting: ", args)
+    if not args.local:
+        import wandb
+    end_step = args.max_cycles
+    """ENV SETUP"""
+    env = parallel_env(render_mode="human", max_cycles=args.max_cycles)
     # parallel_api_test(env, num_cycles=1000)
     obs = env.reset()
-
+    d_args = vars(args)
+    if not args.local:
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project="mediator",
+            # track hyperparameters and run metadata
+            config=d_args,
+        )
     num_agents = len(env.possible_agents)
     num_actions = env.action_space(env.possible_agents[0]).n
     # observation_size = env.observation_space(env.possible_agents[0]).shape
@@ -51,9 +52,11 @@ if __name__ == "__main__":
     """ LEARNER SETUP """
     # separate policies and optimizers
     # agent = Agent(num_actions=num_actions).to(device)
-    agents = {agent : Agent(num_actions=num_actions).to(device) for agent in env.agents}
-    optimizers = {agent : optim.Adam(agents[agent].parameters(), lr=0.001, eps=1e-5) for agent in env.agents}
-    
+    agents = {agent: Agent(num_actions=num_actions).to(device) for agent in env.agents}
+    optimizers = {
+        agent: optim.Adam(agents[agent].parameters(), lr=args.lr, eps=args.eps)
+        for agent in env.agents
+    }
 
     """ TRAINING STORAGE """
     all_obs = {}
@@ -76,20 +79,30 @@ if __name__ == "__main__":
     all_loss_info["approxkl"] = {}
     all_loss_info["clipfrac"] = {}
 
-
     """ ALGO LOGIC: EPISODE STORAGE"""
-    # end_step = 0
     total_episodic_return = 0
-    rb_obs = torch.zeros((max_cycles, num_agents, num_observations)).to(device) # stores stacked observations for each agent
-    rb_actions = torch.zeros((max_cycles, num_agents)).to(device) # stores actions taken by each agent
-    rb_logprobs = torch.zeros((max_cycles, num_agents)).to(device) # stores log probabilities of actions taken by each agent
-    rb_rewards = torch.zeros((max_cycles, num_agents)).to(device) # stores rewards received by each agent
-    rb_terms = torch.zeros((max_cycles, num_agents)).to(device) # stores indicators for terminal states encountered by each agent
-    rb_values = torch.zeros((max_cycles, num_agents)).to(device) # stores values predicted by the value function for each state and each agent
+    rb_obs = torch.zeros((args.max_cycles, num_agents, num_observations)).to(
+        device
+    )  # stores stacked observations for each agent
+    rb_actions = torch.zeros((args.max_cycles, num_agents)).to(
+        device
+    )  # stores actions taken by each agent
+    rb_logprobs = torch.zeros((args.max_cycles, num_agents)).to(
+        device
+    )  # stores log probabilities of actions taken by each agent
+    rb_rewards = torch.zeros((args.max_cycles, num_agents)).to(
+        device
+    )  # stores rewards received by each agent
+    rb_terms = torch.zeros((args.max_cycles, num_agents)).to(
+        device
+    )  # stores indicators for terminal states encountered by each agent
+    rb_values = torch.zeros((args.max_cycles, num_agents)).to(
+        device
+    )  # stores values predicted by the value function for each state and each agent
 
     """ TRAINING LOGIC """
     # train for n number of episodes
-    for episode in range(total_episodes):
+    for episode in range(args.total_episodes):
 
         # collect an episode
         with torch.no_grad():
@@ -100,7 +113,7 @@ if __name__ == "__main__":
             total_episodic_return = np.zeros(num_agents)
 
             # each episode has num_steps
-            for step in range(0, max_cycles):
+            for step in range(0, args.max_cycles):
 
                 # rollover the observation
                 obs = batchify_obs(next_obs, device)
@@ -108,25 +121,35 @@ if __name__ == "__main__":
                 policy_outputs = {}
                 for idx, agent in enumerate(agents):
                     obs_agent = obs[idx]
-                    obs_agent = obs_agent.float() #hotpatch, TODO: fix batchify to return floats
-                    agent_actions, agent_logprobs, _, agent_values = agents[agent].get_action_and_value(obs_agent, action=None)
-                    policy_outputs[agent] ={
-                      "actions": agent_actions, 
-                      "logprobs": agent_logprobs, 
-                      "_": _, 
-                      "values": agent_values
+                    obs_agent = (
+                        obs_agent.float()
+                    )  # hotpatch, TODO: fix batchify to return floats
+                    agent_actions, agent_logprobs, _, agent_values = agents[
+                        agent
+                    ].get_action_and_value(obs_agent, action=None)
+                    policy_outputs[agent] = {
+                        "actions": agent_actions,
+                        "logprobs": agent_logprobs,
+                        "_": _,
+                        "values": agent_values,
                     }
 
                 # join separate tensors from each agent
-                actions = torch.cat([policy_outputs[agent]["actions"].view(1) for agent in agents])
-                logprobs = torch.cat([policy_outputs[agent]["logprobs"].view(1) for agent in agents])
-                values = torch.cat([policy_outputs[agent]["values"].view(1) for agent in agents])
+                actions = torch.cat(
+                    [policy_outputs[agent]["actions"].view(1) for agent in agents]
+                )
+                logprobs = torch.cat(
+                    [policy_outputs[agent]["logprobs"].view(1) for agent in agents]
+                )
+                values = torch.cat(
+                    [policy_outputs[agent]["values"].view(1) for agent in agents]
+                )
                 # execute the environment and log data
                 actions_dict = unbatchify(actions, env)
 
                 next_obs, rewards, terms, _, _ = env.step(
                     actions_dict
-                ) # TODO : why does this return (2,2) for each agent's observations, instead of the previous actions?
+                )  # TODO : why does this return (2,2) for each agent's observations, instead of the previous actions?
 
                 # add to episode storage
                 rb_obs[step] = obs
@@ -150,10 +173,12 @@ if __name__ == "__main__":
             for t in reversed(range(end_step - 1)):
                 delta = (
                     rb_rewards[t]
-                    + gamma * rb_values[t + 1] * rb_terms[t + 1]
+                    + args.gamma * rb_values[t + 1] * rb_terms[t + 1]
                     - rb_values[t]
                 )
-                rb_advantages[t] = delta + gamma * gamma * rb_advantages[t + 1]
+                rb_advantages[t] = (
+                    delta + args.gamma * args.gamma * rb_advantages[t + 1]
+                )
             rb_returns = rb_advantages + rb_values
 
         # convert our episodes to batch of individual transitions
@@ -178,17 +203,18 @@ if __name__ == "__main__":
             # shuffle the indices we use to access the data
             np.random.shuffle(b_index)
             len_b_obs = len(b_obs)
-            for start in range(0, len(b_obs), batch_size):
+            for start in range(0, len(b_obs), args.batch_size):
 
                 for idx, agent in enumerate(agents):
                     # select the indices we want to train on
-                    end = start + batch_size
+                    end = start + args.batch_size
                     batch_index = b_index[start:end]
 
                     _, newlogprob, entropy, value = agents[agent].get_action_and_value(
-                        b_obs[:,idx,:][batch_index], b_actions[:,idx].long()[batch_index]
+                        b_obs[:, idx, :][batch_index],
+                        b_actions[:, idx].long()[batch_index],
                     )
-                    logratio = newlogprob - b_logprobs[:,idx][batch_index]
+                    logratio = newlogprob - b_logprobs[:, idx][batch_index]
                     ratio = logratio.exp()
 
                     with torch.no_grad():
@@ -196,36 +222,38 @@ if __name__ == "__main__":
                         old_approx_kl = (-logratio).mean()
                         approx_kl = ((ratio - 1) - logratio).mean()
                         clip_fracs += [
-                            ((ratio - 1.0).abs() > clip_coef).float().mean().item()
+                            ((ratio - 1.0).abs() > args.clip_coef).float().mean().item()
                         ]
 
                     # normalize advantaegs
-                    advantages = b_advantages[:,idx][batch_index]
+                    advantages = b_advantages[:, idx][batch_index]
                     advantages = (advantages - advantages.mean()) / (
                         advantages.std() + 1e-8
                     )
 
                     # Policy loss
-                    pg_loss1 = -b_advantages[:,idx][batch_index] * ratio
-                    pg_loss2 = -b_advantages[:,idx][batch_index] * torch.clamp(
-                        ratio, 1 - clip_coef, 1 + clip_coef
+                    pg_loss1 = -b_advantages[:, idx][batch_index] * ratio
+                    pg_loss2 = -b_advantages[:, idx][batch_index] * torch.clamp(
+                        ratio, 1 - args.clip_coef, 1 + args.clip_coef
                     )
                     pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                     # Value loss
                     value = value.flatten()
-                    v_loss_unclipped = (value - b_returns[:,idx][batch_index]) ** 2
-                    v_clipped = b_values[:,idx][batch_index] + torch.clamp(
-                        value - b_values[:,idx][batch_index],
-                        -clip_coef,
-                        clip_coef,
+                    v_loss_unclipped = (value - b_returns[:, idx][batch_index]) ** 2
+                    v_clipped = b_values[:, idx][batch_index] + torch.clamp(
+                        value - b_values[:, idx][batch_index],
+                        -args.clip_coef,
+                        args.clip_coef,
                     )
-                    v_loss_clipped = (v_clipped - b_returns[:,idx][batch_index]) ** 2
+                    v_loss_clipped = (v_clipped - b_returns[:, idx][batch_index]) ** 2
                     v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
                     v_loss = 0.5 * v_loss_max.mean()
 
                     entropy_loss = entropy.mean()
-                    loss = pg_loss - ent_coef * entropy_loss + v_loss * vf_coef
+                    loss = (
+                        pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
+                    )
 
                     optimizers[agent].zero_grad()
                     loss.backward()
@@ -268,15 +296,37 @@ if __name__ == "__main__":
         all_loss_info[episode]["value_loss"] = v_loss.item()
         all_loss_info[episode]["approxkl"] = approx_kl.item()
         all_loss_info[episode]["clipfrac"] = np.mean(clip_fracs)
-        
-
+        if not args.local:
+            wandb.log(
+                {
+                    "episode": episode,
+                    "Episodic Return:": np.mean(total_episodic_return),
+                    "Episode Length": end_step,
+                    "Value Loss": v_loss.item(),
+                    "Policy Loss": pg_loss.item(),
+                    "Old Approx KL": old_approx_kl.item(),
+                    "Approx KL": approx_kl.item(),
+                    "Clip Fraction": np.mean(clip_fracs),
+                    "Explained Variance": explained_var.item(),
+                    # "all_obs": all_obs[episode],
+                    # "all_actions": all_actions[episode],
+                    # "all_logprobs": all_logprobs[episode],
+                    # "all_rewards": all_rewards[episode],
+                    # "all_terms": all_terms[episode],
+                    # "all_values": all_values[episode],
+                    # "all_returns": all_returns[episode],
+                    # "all_advantages": all_advantages[episode],
+                    # "all_loss": all_loss[episode],
+                    # "all_loss_pi": all_loss_pi[episode],
+                    # "all_loss_v": all_loss_v[episode],
+                    # "all_loss_ent": all_loss_ent[episode],
+                }
+            )
     """ RENDER THE POLICY """
     # env = env()
     # env = color_reduction_v0(env)
     # env = resize_v1(env, 64, 64)
-    # env = frame_stack_v1(env, stack_size=4)
-
-    
+    # env = frame_stack_v1(env, args.stack_size=4)
 
     for agent in agents:
         agents[agent].eval()
@@ -286,11 +336,13 @@ if __name__ == "__main__":
         for episode in range(5):
             obs = batchify_obs(env.reset(seed=None), device)
             # obs = obs
-            for step in range(0, max_cycles):
+            for step in range(0, args.max_cycles):
                 actions = {}
                 for idx, agent in enumerate(agents):
                     agent_obs = obs[idx]
-                    agent_actions, logprobs, _, values = agents[agent].get_action_and_value(agent_obs.float(), action=None)
+                    agent_actions, logprobs, _, values = agents[
+                        agent
+                    ].get_action_and_value(agent_obs.float(), action=None)
                     actions[agent] = agent_actions
 
                 actions = torch.cat([actions[agent].view(1) for agent in agents])
