@@ -80,7 +80,9 @@ class raw_env(AECEnv):
         self.infos = {agent: {} for agent in self.agents}
 
         self.state = {agent: self._none for agent in self.agents}
-        self.observations = {agent: [self._none]*len(self.possible_agents) for agent in self.agents}
+        self.observations = {
+            agent: [self._none] * len(self.possible_agents) for agent in self.agents
+        }
 
         self.history = [0] * (2 * 5)
 
@@ -104,7 +106,7 @@ class raw_env(AECEnv):
             )
         else:
             string = "Game over"
-        # print(string)
+        print(string)
 
     def observe(self, agent):
         # observation of one agent is the previous state of the other
@@ -145,7 +147,9 @@ class raw_env(AECEnv):
 
             # observe the current state
             for i in self.agents:
-                self.observations[i] = list(self.state.values()) # TODO: consider switching the board 
+                self.observations[i] = list(
+                    self.state.values()
+                )  # TODO: consider switching the board
         else:
             self.state[self.agents[1 - self.agent_name_mapping[agent]]] = self._none
             self._clear_rewards()
@@ -159,27 +163,28 @@ class raw_env(AECEnv):
 
 
 if __name__ == "__main__":
-    from pettingzoo.test import parallel_api_test
+    SEED = 0
+    if SEED is not None:
+        np.random.seed(SEED)
+    # from pettingzoo.test import parallel_api_test
 
     env = parallel_env(render_mode="human")
-    parallel_api_test(env, num_cycles=1000)
+    # parallel_api_test(env, num_cycles=1000)
 
     # Reset the environment and get the initial observation
     obs = env.reset()
 
     # Run the environment for 10 steps
-    # for _ in range(10):
-    #     # Sample a random action
-    #     action_a = env.action_spaces["player_0"].sample()
-    #     action_b = env.action_spaces["player_1"].sample()
-    #     actions = (action_a, action_b)
+    for _ in range(10):
+        # Sample a random action
+        actions = {"player_" + str(i): np.random.randint(2) for i in range(2)}
 
-    #     # Step the environment and get the reward, observation, and done flag
-    #     obs, reward, done, _ = env.step(actions)
+        # Step the environment and get the reward, observation, and done flag
+        observations, rewards, terminations, truncations, infos = env.step(actions)
 
-    #     # Print the reward
-    #     print(reward)
-
-    #     # If the game is over, reset the environment
-    #     if done:
-    #         obs = env.reset()
+        # Print the reward
+        # print(rewards)
+        print("observations: ", observations)
+        # If the game is over, reset the environment
+        if terminations["player_0"]:
+            obs = env.reset()

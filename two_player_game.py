@@ -27,13 +27,15 @@ os.environ["SDL_VIDEODRIVER"] = "dummy"
 #####################
 
 if __name__ == "__main__":
+
     args = parse_args()
     print("Exp setting: ", args)
     if not args.local:
         import wandb
     end_step = args.max_cycles
+
     """ENV SETUP"""
-    env = parallel_env(render_mode="human", max_cycles=args.max_cycles)
+    env = parallel_env(render_mode=None, max_cycles=args.max_cycles)
     # parallel_api_test(env, num_cycles=1000)
     obs = env.reset()
     d_args = vars(args)
@@ -150,7 +152,7 @@ if __name__ == "__main__":
                 next_obs, rewards, terms, _, _ = env.step(
                     actions_dict
                 )  # TODO : why does this return (2,2) for each agent's observations, instead of the previous actions?
-
+                print("next_obs: ", next_obs)
                 # add to episode storage
                 rb_obs[step] = obs
                 rb_rewards[step] = batchify(rewards, device)
