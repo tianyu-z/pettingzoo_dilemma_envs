@@ -6,11 +6,10 @@ import gymnasium
 import numpy as np
 import random
 from gymnasium.spaces import Discrete
-
 from pettingzoo import AECEnv
 from pettingzoo.utils import agent_selector, wrappers
 from pettingzoo.utils.conversions import parallel_wrapper_fn
-
+SEED = 42
 
 def env(**kwargs):
     env = raw_env(**kwargs)
@@ -79,7 +78,8 @@ class raw_env(AECEnv):
             for agent in self.agents
         }  # init the location of agents and the coin player_x, player_y, coin_x, coin_y, has_coin
         self.observations = {agent: None for agent in self.agents}
-
+        self.coin_pos = -1 * np.ones(2, dtype=np.int8)
+        self.coin_pos_old = self.coin_pos.copy()
         self.player_pos = -1 * np.ones(
             (self.nb_players, 2)
         )  # the x-coord and y-coord of the player
@@ -94,7 +94,10 @@ class raw_env(AECEnv):
         # aux variables during steps
         self.actions_taken = {agent: None for agent in self.agents}
         self.generate_new_coin = False
-
+        if randomize_coin:
+            self.agent_picker_buffer = np.array(range(self.nb_players))
+            random.shuffle(self.agent_picker_buffer)
+            self.agent_picker_idx = 0
         self.reinit()
 
     def observation_space(self, agent):
@@ -105,11 +108,13 @@ class raw_env(AECEnv):
 
     def _generate_coin(self, randomize=False):
         self.player_coin_old = self.player_coin
-        self.coin_pos_old = self.coin_pos.copy()
+
         if randomize:
-            self.player_coin = np.random.randint(
-                self.nb_players
-            )  # next coin belong to a random agent
+            # next coin belong to a random agent
+            self.player_coin = self.agent_picker_buffer[self.agent_picker_idx % self.nb_players]
+            self.agent_picker_idx += 1
+            if self.agent_picker_idx % self.nb_players == 0:
+                random.shuffle(self.agent_picker_buffer)
         else:
             self.player_coin = (
                 1 + self.player_coin
@@ -183,22 +188,31 @@ class raw_env(AECEnv):
                 "You are calling render method without specifying any render mode."
             )
             return
-        print("Coin position: {}".format(self.coin_pos_old))
-        print("Coin belongs to: {}".format(self.player_coin_old))
+        print("This is a {} round".format(self.num_moves))
+        print("Coin (before taken) position: {}".format(self.coin_pos))
+        print("Coin (before taken) belongs to: {}".format(self.player_coin))
+        agent = self.agent_selection
         if len(self.agents) == self.nb_players:
-            print("Players information: ")
-            for agent in self.agents:
-                print(
-                    "Agent {} position: {} ".format(
-                        agent, self.player_pos[self.agent_name_mapping[agent], :]
-                    )
+            # print("Players information: ")
+            print(
+                "Agent {} position before action: {} ".format(
+                    agent, self.player_pos_old[self.agent_name_mapping[agent], :]
                 )
-                print(
-                    "Agent {} action: {} ".format(
-                        agent, self._moves[self.actions_taken[agent]]
-                    )
+            )
+            print(
+                "Agent {} action: {} ".format(
+                    agent, self._moves[self.actions_taken[agent]]
                 )
-                print("Agent {} reward: {} ".format(agent, self.rewards[agent]))
+            )
+            print(
+                "Agent {} position after action: {} ".format(
+                    agent, self.player_pos[self.agent_name_mapping[agent], :]
+                )
+            )
+            if self._agent_selector.is_last():
+                for a in self.agents:
+                    print("Agent {} reward after action: {} ".format(a, self.rewards[a]))
+                    print("Agent {} cumulative rewards after action: {} ".format(a, self._cumulative_rewards[a]))
         else:
             print("Game over")
         print("\n")
@@ -210,7 +224,7 @@ class raw_env(AECEnv):
     def close(self):
         pass
 
-    def reset(self, seed=None, return_info=False, options=None):
+    def reset(self, seed=SEED, return_info=False, options=None):
         self.reinit()
 
     def _same_pos(self, x, y):
@@ -223,37 +237,50 @@ class raw_env(AECEnv):
         ):
             self._was_dead_step(action)
             return
-
         agent = self.agent_selection
-
+        if self._agent_selector.is_first():
+            self.rewards = {agent: 0 for agent in self.agents}
         # self.state[self.agent_selection] = action
+        self.generate_new_coin = False
+
         self.actions_taken[agent] = action
+        self.player_pos_old = self.player_pos.copy()
         potential_position = (
             self.player_pos[self.agent_name_mapping[agent], :] + self._moves[action]
         ) % self.grid_size
-        if potential_position not in self.player_pos:
+        if potential_position.tolist() not in self.player_pos.tolist():
             self.player_pos[self.agent_name_mapping[agent], :] = potential_position
         # if this grid already has an agent, stay still
 
-        # compute rewards
-        if self.player_coin == self.agent_name_mapping[agent]:
-            if self._same_pos(
-                self.player_pos[self.agent_name_mapping[agent]], self.coin_pos
-            ):
-                self.generate_new_coin = True
-                self.rewards[agent] = 1
-            for k in range(self.nb_players):
-                if k != self.agent_name_mapping[agent]:
-                    if self._same_pos(self.player_pos[k], self.coin_pos):
-                        self.generate_new_coin = True
-                        self.rewards[agent] -= 2
-                        self.rewards["player_" + str(k)] += 1
-        # if a coin is collected and all agents finish their actions, regenerate the coin
-        if self._agent_selector.is_last() and self.generate_new_coin:
-            self._generate_coin((self.randomize_coin))
-
         # when all agent is done, update state and generate observations
         if self._agent_selector.is_last():
+            self.rewards = {agent: 0 for agent in self.agents}
+            for a in self.agents:
+                # compute rewards
+                if self.player_coin == self.agent_name_mapping[a]:
+                    if self._same_pos(
+                        self.player_pos[self.agent_name_mapping[a]], self.coin_pos
+                    ):
+                        self.generate_new_coin = True
+                        self.rewards[a] += 1
+                    for k in range(self.nb_players):
+                        if k != self.agent_name_mapping[a]:
+                            if self._same_pos(self.player_pos[k], self.coin_pos):
+                                self.generate_new_coin = True
+                                self.rewards[a] -= 2
+                                self.rewards["player_" + str(k)] += 1
+            # if a coin is collected and all agents finish their actions, regenerate the coin
+
+        if self._agent_selector.is_last():
+            self._accumulate_rewards()
+
+        if self.render_mode == "human":
+            self.render()
+        
+        if self._agent_selector.is_last():
+            self.coin_pos_old = self.coin_pos.copy()
+            if self.generate_new_coin:
+                self._generate_coin((self.randomize_coin))
             self.num_moves += 1
             self.truncations = {
                 agent: self.num_moves >= self.max_cycles for agent in self.agents
@@ -261,36 +288,37 @@ class raw_env(AECEnv):
             self._generate_state()
             # observe the current states
             self._generate_observation()  # each agent knows the all the state, action and reward of all the agents
-            if self.render_mode == "human":
-                self.render()
 
-        self._cumulative_rewards[self.agent_selection] = 0
+        # self._cumulative_rewards[self.agent_selection] = 0
+
         self.agent_selection = self._agent_selector.next()
-        self._accumulate_rewards()
+
 
 
 if __name__ == "__main__":
-    from pettingzoo.test import parallel_api_test
+    if SEED is not None:
+        random.seed(SEED)
+        np.random.seed(SEED)
+    # from pettingzoo.test import parallel_api_test
 
-    env = parallel_env(render_mode="human")
-    parallel_api_test(env, num_cycles=1000)
+    env = parallel_env(render_mode="human", nb_players=3, grid_size=4, max_cycles=1000, randomize_coin=True)
+    # parallel_api_test(env, num_cycles=1000)
 
     # Reset the environment and get the initial observation
     obs = env.reset()
-
+    nb_agent = 3
     # Run the environment for 10 steps
-    # for _ in range(10):
-    #     # Sample a random action
-    #     action_a = env.action_spaces["player_0"].sample()
-    #     action_b = env.action_spaces["player_1"].sample()
-    #     actions = (action_a, action_b)
+    for _ in range(1000):
+        # Sample a random action
+        actions = {"player_"+str(i): np.random.randint(4) for i in range(nb_agent)}
 
     #     # Step the environment and get the reward, observation, and done flag
-    #     obs, reward, done, _ = env.step(actions)
+        observations, rewards, terminations, truncations, infos = env.step(actions)
 
     #     # Print the reward
-    #     print(reward)
+        # print(rewards)
 
     #     # If the game is over, reset the environment
-    #     if done:
-    #         obs = env.reset()
+        if terminations["player_0"]:
+            obs = env.reset()
+    
