@@ -5,8 +5,14 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--local",
-        action="store_true",
+        action="store_false",
         help="Whether to use wandb for logging",
+    )
+    parser.add_argument(
+        "--nb_hidden",
+        type=int,
+        default=512,
+        help="Number of hidden units in the network",
     )
     parser.add_argument(
         "--batch_size",

@@ -15,6 +15,7 @@ import gymnasium
 from gymnasium.spaces import Discrete
 
 from games import Game, Prisoners_Dilemma, Samaritans_Dilemma, Stag_Hunt, Chicken
+
 # from dilemma_pettingzoo import raw_env, env, parallel_env
 from coin_game_pettingzoo import raw_env, env, parallel_env
 from agents.agent import Agent
@@ -50,12 +51,19 @@ if __name__ == "__main__":
     num_agents = len(env.possible_agents)
     num_actions = env.action_space(env.possible_agents[0]).n
     # observation_size = env.observation_space(env.possible_agents[0]).shape
-    num_observations = 2
+    num_observations = len(env.aec_env.env.env.observations[env.possible_agents[0]])
 
     """ LEARNER SETUP """
     # separate policies and optimizers
     # agent = Agent(num_actions=num_actions).to(device)
-    agents = {agent: Agent(num_actions=num_actions, num_input= (env.reset()).shape ).to(device) for agent in env.agents}
+    agents = {
+        agent: Agent(
+            num_actions=num_actions,
+            num_input=num_observations,
+            num_hidden=args.nb_hidden,
+        ).to(device)
+        for agent in env.agents
+    }
     optimizers = {
         agent: optim.Adam(agents[agent].parameters(), lr=args.lr, eps=args.eps)
         for agent in env.agents
@@ -119,7 +127,6 @@ if __name__ == "__main__":
             for step in range(0, args.max_cycles):
 
                 # rollover the observation
-                print(next_obs)
                 obs = batchify_obs(next_obs, device)
 
                 policy_outputs = {}

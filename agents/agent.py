@@ -10,18 +10,20 @@ from torch.distributions.categorical import Categorical
 from pettingzoo.butterfly import pistonball_v6
 
 import os
+
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
+
 class Agent(nn.Module):
-    def __init__(self, num_actions):
+    def __init__(self, num_actions, num_input=2, num_hidden=512):
         super().__init__()
 
         self.network = nn.Sequential(
-            self._layer_init(nn.Linear(2, 512)),
+            self._layer_init(nn.Linear(num_input, num_hidden)),
             nn.ReLU(),
         )
-        self.actor = self._layer_init(nn.Linear(512, num_actions), std=0.01)
-        self.critic = self._layer_init(nn.Linear(512, 1))
+        self.actor = self._layer_init(nn.Linear(num_hidden, num_actions), std=0.01)
+        self.critic = self._layer_init(nn.Linear(num_hidden, 1))
 
     def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
         torch.nn.init.orthogonal_(layer.weight, std)
