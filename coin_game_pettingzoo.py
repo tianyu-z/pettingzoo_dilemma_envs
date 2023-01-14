@@ -10,6 +10,8 @@ from pettingzoo import AECEnv
 from pettingzoo.utils import agent_selector, wrappers
 from pettingzoo.utils.conversions import parallel_wrapper_fn
 SEED = 42
+from copy import deepcopy
+
 
 def env(**kwargs):
     env = raw_env(**kwargs)
@@ -60,9 +62,7 @@ class raw_env(AECEnv):
         self.possible_agents = self.agents[:]
         self.agent_name_mapping = dict(zip(self.agents, list(range(self.nb_players))))
         self.action_spaces = {agent: Discrete(num_actions) for agent in self.agents}
-        self.observation_spaces = {
-            agent: Discrete(1 + num_actions) for agent in self.agents
-        }
+
         self.grid_size = grid_size
         self.ob_space_shape = [
             self.nb_players * 2,
@@ -77,9 +77,12 @@ class raw_env(AECEnv):
             agent: {"px": -1, "py": -1, "cx": -1, "cy": -1, "hc": 0}
             for agent in self.agents
         }  # init the location of agents and the coin player_x, player_y, coin_x, coin_y, has_coin
-        self.observations = {agent: None for agent in self.agents}
+        self.observation_spaces = {
+            agent: Discrete((len(self.state["player_0"].values()) + 1 + 1) * self.nb_players) for agent in self.agents
+        }
+        self.observations = {agent: [0] * (len(self.state["player_0"].values()) + 1 + 1) * self.nb_players for agent in self.agents}
         self.coin_pos = -1 * np.ones(2, dtype=np.int8)
-        self.coin_pos_old = self.coin_pos.copy()
+        self.coin_pos_old = deepcopy(self.coin_pos)
         self.player_pos = -1 * np.ones(
             (self.nb_players, 2)
         )  # the x-coord and y-coord of the player
@@ -119,7 +122,7 @@ class raw_env(AECEnv):
             self.player_coin = (
                 1 + self.player_coin
             ) % self.nb_players  # next coin belong to next agent
-        self.grids_copy = self.grids.copy()
+        self.grids_copy = deepcopy(self.grids)
         for j in range(self.nb_players):
             self.grids_copy.remove(list(self.player_pos[j, :]))
         random.shuffle(self.grids_copy)
@@ -137,7 +140,7 @@ class raw_env(AECEnv):
         return
 
     def _generate_observation(self):
-        state_and_action_and_reward = self.state.copy()
+        state_and_action_and_reward = deepcopy(self.state)
         for a in self.agents:
             state_and_action_and_reward[a]["action"] = self.actions_taken[a]
             state_and_action_and_reward[a]["reward"] = self.rewards[a]
@@ -145,7 +148,7 @@ class raw_env(AECEnv):
         for a in self.agents:
             tmp += list(state_and_action_and_reward[a].values())
         for a in self.agents:
-            self.observations[a] = tmp.copy()
+            self.observations[a] = deepcopy(tmp)
         del state_and_action_and_reward
         return
 
@@ -164,7 +167,7 @@ class raw_env(AECEnv):
         # self.state = {agent: self._none for agent in self.agents}
 
         # generate player_pos
-        self.grids_copy = self.grids.copy()
+        self.grids_copy = deepcopy(self.grids)
         random.shuffle(self.grids_copy)
         self.player_pos[:, :] = np.array(self.grids_copy[: self.nb_players])
         # generate coin pos
@@ -175,7 +178,7 @@ class raw_env(AECEnv):
         self.actions_taken = {agent: None for agent in self.agents}
 
         self._generate_state()
-        self.observations = {agent: None for agent in self.agents}
+        self.observations = {agent: [0] * (len(self.state["player_0"].values()) + 1 + 1) * self.nb_players for agent in self.agents}
         self.num_moves = 0
 
     def render(self):
@@ -244,7 +247,7 @@ class raw_env(AECEnv):
         self.generate_new_coin = False
 
         self.actions_taken[agent] = action
-        self.player_pos_old = self.player_pos.copy()
+        self.player_pos_old = deepcopy(self.player_pos)
         potential_position = (
             self.player_pos[self.agent_name_mapping[agent], :] + self._moves[action]
         ) % self.grid_size
@@ -278,7 +281,7 @@ class raw_env(AECEnv):
             self.render()
         
         if self._agent_selector.is_last():
-            self.coin_pos_old = self.coin_pos.copy()
+            self.coin_pos_old = deepcopy(self.coin_pos)
             if self.generate_new_coin:
                 self._generate_coin((self.randomize_coin))
             self.num_moves += 1
@@ -321,4 +324,3 @@ if __name__ == "__main__":
     #     # If the game is over, reset the environment
         if terminations["player_0"]:
             obs = env.reset()
-    

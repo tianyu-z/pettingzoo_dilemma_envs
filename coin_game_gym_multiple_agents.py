@@ -8,6 +8,7 @@ import gym
 import numpy as np
 import random
 from gym.spaces import Discrete, Tuple
+from copy import deepcopy
 
 
 class CoinGameVec:
@@ -45,7 +46,7 @@ class CoinGameVec:
         self.player_pos = np.zeros((self.batch_size, self.NUM_AGENTS, 2))
         self.coin_pos = np.zeros((self.batch_size, 2), dtype=np.int8)
         for i in range(self.batch_size):
-            self.grids_copy = self.grids.copy()
+            self.grids_copy = deepcopy(self.grids)
             random.shuffle(self.grids_copy)
             self.player_pos[i, :, :] = np.array(self.grids_copy[: self.NUM_AGENTS])
             self._generate_coin(i)
@@ -61,7 +62,7 @@ class CoinGameVec:
             self.player_coin[i] = (
                 1 + self.player_coin[i]
             ) % self.NUM_AGENTS  # next coin belong to next agent
-        self.grids_copy = self.grids.copy()
+        self.grids_copy = deepcopy(self.grids)
         for j in range(self.NUM_AGENTS):
             self.grids_copy.remove(list(self.player_pos[i, j, :]))
         random.shuffle(self.grids_copy)
