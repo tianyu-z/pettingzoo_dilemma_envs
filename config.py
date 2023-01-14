@@ -5,13 +5,13 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--local",
-        action="store_false",
+        action="store_true",
         help="Whether to use wandb for logging",
     )
     parser.add_argument(
         "--nb_hidden",
         type=int,
-        default=512,
+        default=128,
         help="Number of hidden units in the network",
     )
     parser.add_argument(
