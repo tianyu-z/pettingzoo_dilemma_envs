@@ -10,7 +10,13 @@ from pettingzoo import AECEnv
 from pettingzoo.utils import agent_selector, wrappers
 from pettingzoo.utils.conversions import parallel_wrapper_fn
 
-from games import Game, Prisoners_Dilemma, Samaritans_Dilemma, Stag_Hunt, Chicken
+from games import (
+    Game,
+    Prisoners_Dilemma,
+    Samaritans_Dilemma,
+    Stag_Hunt,
+    Chicken,
+)
 
 
 def env(**kwargs):
@@ -35,7 +41,9 @@ class raw_env(AECEnv):
         "is_parallelizable": True,
     }
 
-    def __init__(self, game="pd", num_actions=2, max_cycles=15, render_mode=None):
+    def __init__(
+        self, game="pd", num_actions=2, max_cycles=15, render_mode=None
+    ):
         self.max_cycles = max_cycles
         GAMES = {
             "pd": Prisoners_Dilemma(),
@@ -53,8 +61,12 @@ class raw_env(AECEnv):
 
         self.agents = ["player_" + str(r) for r in range(2)]
         self.possible_agents = self.agents[:]
-        self.agent_name_mapping = dict(zip(self.agents, list(range(self.num_agents))))
-        self.action_spaces = {agent: Discrete(num_actions) for agent in self.agents}
+        self.agent_name_mapping = dict(
+            zip(self.agents, list(range(self.num_agents)))
+        )
+        self.action_spaces = {
+            agent: Discrete(num_actions) for agent in self.agents
+        }
         self.observation_spaces = {
             agent: Discrete(1 + num_actions) for agent in self.agents
         }
@@ -81,7 +93,8 @@ class raw_env(AECEnv):
 
         self.state = {agent: self._none for agent in self.agents}
         self.observations = {
-            agent: [self._none] * len(self.possible_agents) for agent in self.agents
+            agent: [self._none] * len(self.possible_agents)
+            for agent in self.agents
         }
 
         self.history = [0] * (2 * 5)
@@ -142,7 +155,8 @@ class raw_env(AECEnv):
 
             self.num_moves += 1
             self.truncations = {
-                agent: self.num_moves >= self.max_cycles for agent in self.agents
+                agent: self.num_moves >= self.max_cycles
+                for agent in self.agents
             }
 
             # observe the current state
@@ -151,7 +165,9 @@ class raw_env(AECEnv):
                     self.state.values()
                 )  # TODO: consider switching the board
         else:
-            self.state[self.agents[1 - self.agent_name_mapping[agent]]] = self._none
+            self.state[
+                self.agents[1 - self.agent_name_mapping[agent]]
+            ] = self._none
             self._clear_rewards()
 
         self._cumulative_rewards[self.agent_selection] = 0
@@ -180,7 +196,9 @@ if __name__ == "__main__":
         actions = {"player_" + str(i): np.random.randint(2) for i in range(2)}
 
         # Step the environment and get the reward, observation, and done flag
-        observations, rewards, terminations, truncations, infos = env.step(actions)
+        observations, rewards, terminations, truncations, infos = env.step(
+            actions
+        )
 
         # Print the reward
         # print(rewards)

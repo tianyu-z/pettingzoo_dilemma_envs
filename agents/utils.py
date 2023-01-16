@@ -10,9 +10,11 @@ from torch.distributions.categorical import Categorical
 from pettingzoo.butterfly import pistonball_v6
 
 import os
+
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
 # https://pettingzoo.farama.org/content/tutorials/
+
 
 def batchify_obs(obs, device):
     """Converts PZ style observations to batch of torch arrays."""

@@ -22,7 +22,9 @@ class Agent(nn.Module):
             self._layer_init(nn.Linear(num_input, num_hidden)),
             nn.ReLU(),
         )
-        self.actor = self._layer_init(nn.Linear(num_hidden, num_actions), std=0.01)
+        self.actor = self._layer_init(
+            nn.Linear(num_hidden, num_actions), std=0.01
+        )
         self.critic = self._layer_init(nn.Linear(num_hidden, 1))
 
     def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
@@ -39,4 +41,9 @@ class Agent(nn.Module):
         probs = Categorical(logits=logits)
         if action is None:
             action = probs.sample()
-        return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
+        return (
+            action,
+            probs.log_prob(action),
+            probs.entropy(),
+            self.critic(hidden),
+        )
