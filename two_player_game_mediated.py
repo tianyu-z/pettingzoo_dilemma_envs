@@ -76,7 +76,7 @@ if __name__ == "__main__":
 
     """ MEDIATOR SETUP"""
 
-    mediator = Mediator(num_actions=num_actions).to(device)
+    mediator = Mediator(num_actions=num_actions * num_agents).to(device)
     mediator_optimizer = optim.Adam(
         mediator.parameters(), lr=args.lr, eps=args.eps
     )
@@ -156,16 +156,16 @@ if __name__ == "__main__":
     ).to(
         device
     )  # stores actions taken by each agent
-    med_rb_logprobs = torch.zeros((args.max_cycles, num_agents)).to(
+    med_rb_logprobs = torch.zeros((args.max_cycles)).to(
         device
     )  # stores log probabilities of actions taken by each agent
-    med_rb_rewards = torch.zeros((args.max_cycles, num_agents)).to(
+    med_rb_rewards = torch.zeros((args.max_cycles)).to(
         device
     )  # stores rewards received by each agent
-    med_rb_terms = torch.zeros((args.max_cycles, num_agents)).to(
+    med_rb_terms = torch.zeros((args.max_cycles)).to(
         device
     )  # stores indicators for terminal states encountered by each agent
-    med_rb_values = torch.zeros((args.max_cycles, num_agents)).to(
+    med_rb_values = torch.zeros((args.max_cycles)).to(
         device
     )  # stores values predicted by the value function for each state and each agent
 
@@ -201,7 +201,9 @@ if __name__ == "__main__":
                 for idx, agent in enumerate(agents):
                     agent_obs = obs[idx]
                     # add the mediator action to the observation
-                    agent_obs = torch.cat((agent_obs, med_actions), dim=0)
+                    agent_obs = torch.cat(
+                        (agent_obs, med_actions.squeeze()), dim=0
+                    )
                     agent_obs = agent_obs.float()  # hotpatch
                     agent_actions, agent_logprobs, _, agent_values = agents[
                         agent
@@ -249,7 +251,7 @@ if __name__ == "__main__":
                 rb_values[step] = values
 
                 med_rb_obs[step] = obs
-                med_rb_rewards[step] = rb_rewards[step]
+                med_rb_rewards[step] = torch.mean(rb_rewards[step])
                 med_rb_actions[step] = med_actions
                 med_rb_logprobs[step] = med_logprobs
                 med_rb_values[step] = med_values
@@ -269,6 +271,7 @@ if __name__ == "__main__":
         # bootstrap value if not done
         with torch.no_grad():
             rb_advantages = torch.zeros_like(rb_rewards).to(device)
+            med_rb_advantages = torch.zeros_like(med_rb_rewards).to(device)
             for t in reversed(range(end_step - 1)):
                 delta = (
                     rb_rewards[t]
@@ -278,7 +281,19 @@ if __name__ == "__main__":
                 rb_advantages[t] = (
                     delta + args.gamma * args.gamma * rb_advantages[t + 1]
                 )
+                # compute advantages for mediator
+                med_delta = (
+                    med_rb_rewards[t]
+                    + args.gamma * med_rb_values[t + 1] * med_rb_terms[t + 1]
+                    - med_rb_values[t]
+                )
+                med_rb_advantages[t] = (
+                    med_delta
+                    + args.gamma * args.gamma * med_rb_advantages[t + 1]
+                )
+
             rb_returns = rb_advantages + rb_values
+            med_rb_returns = med_rb_advantages + med_rb_values
 
         # convert our episodes to batch of individual transitions
         # b_obs = torch.flatten(rb_obs[:end_step], start_dim=0, end_dim=1)
@@ -295,6 +310,13 @@ if __name__ == "__main__":
         b_values = rb_values[:end_step]
         b_advantages = rb_advantages[:end_step]
 
+        med_b_obs = med_rb_obs[:end_step]
+        med_b_logprobs = med_rb_logprobs[:end_step]
+        med_b_actions = med_rb_actions[:end_step]
+        med_b_returns = med_rb_returns[:end_step]
+        med_b_values = med_rb_values[:end_step]
+        med_b_advantages = med_rb_advantages[:end_step]
+
         # Optimizing the policy and value network
         b_index = np.arange(len(b_obs))
         clip_fracs = []
@@ -304,10 +326,11 @@ if __name__ == "__main__":
             len_b_obs = len(b_obs)
             for start in range(0, len(b_obs), args.batch_size):
 
+                # select the indices we want to train on
+                end = start + args.batch_size
+                batch_index = b_index[start:end]
+
                 for idx, agent in enumerate(agents):
-                    # select the indices we want to train on
-                    end = start + args.batch_size
-                    batch_index = b_index[start:end]
 
                     _, newlogprob, entropy, value = agents[
                         agent
@@ -368,6 +391,63 @@ if __name__ == "__main__":
                     optimizers[agent].zero_grad()
                     loss.backward()
                     optimizers[agent].step()
+
+                # train the mediator
+                obs_batch = med_b_obs[batch_index][:, 0, :]
+                action_batch = med_b_actions.long()[batch_index][:, 0, :]
+                _, newlogprob, entropy, value = mediator.get_action_and_value(
+                    obs_batch,
+                    action_batch,
+                )
+                logratio = newlogprob - med_b_logprobs[batch_index]
+                ratio = logratio.exp()
+
+                with torch.no_grad():
+                    # calculate approx_kl http://joschu.net/blog/kl-approx.html
+                    old_approx_kl = (-logratio).mean()
+                    approx_kl = ((ratio - 1) - logratio).mean()
+                    clip_fracs += [
+                        ((ratio - 1.0).abs() > args.clip_coef)
+                        .float()
+                        .mean()
+                        .item()
+                    ]
+
+                # normalize advantaegs
+                advantages = med_b_advantages[batch_index]
+                advantages = (advantages - advantages.mean()) / (
+                    advantages.std() + 1e-8
+                )
+
+                # Policy loss
+                pg_loss1 = -med_b_advantages[batch_index] * ratio
+                pg_loss2 = -med_b_advantages[batch_index] * torch.clamp(
+                    ratio, 1 - args.clip_coef, 1 + args.clip_coef
+                )
+                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
+                # Value loss
+                value = value.flatten()
+                v_loss_unclipped = (value - med_b_returns[batch_index]) ** 2
+                v_clipped = med_b_values[batch_index] + torch.clamp(
+                    value - med_b_values[batch_index],
+                    -args.clip_coef,
+                    args.clip_coef,
+                )
+                v_loss_clipped = (v_clipped - med_b_returns[batch_index]) ** 2
+                v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                v_loss = 0.5 * v_loss_max.mean()
+
+                entropy_loss = entropy.mean()
+                loss = (
+                    pg_loss
+                    - args.ent_coef * entropy_loss
+                    + v_loss * args.vf_coef
+                )
+
+                mediator_optimizer.zero_grad()
+                loss.backward()
+                mediator_optimizer.step()
 
         y_pred, y_true = b_values.cpu().numpy(), b_returns.cpu().numpy()
         var_y = np.var(y_true)
