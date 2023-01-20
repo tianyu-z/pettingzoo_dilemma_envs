@@ -88,8 +88,8 @@ for it in tqdm.trange(n_train_steps):
 
     Z = logZ.exp()
 
-    flag = True
-    if flag:
+    is_detach_form_TB = True
+    if is_detach_form_TB:
         # detached form  of TB
         ll_diff = torch.zeros((batch_size,)).to(device)
         ll_diff += logZ
@@ -112,9 +112,9 @@ for it in tqdm.trange(n_train_steps):
         ] = (
             -1e8
         )  # if we don't want to generate eos_token : don't allow generation of sentences with differents lengths
-        scores = scores.log_softmax(1)
+        scores = scores.log_softmax(dim=1)
         sample_temperature = 1
-        probs = F.softmax(scores / sample_temperature, dim=1)
+        probs = F.softmax(scores / sample_temperature, dim=1)  # softmax of log softmax?
         next_words = torch.multinomial(probs, 1).squeeze(1)
 
         # update generations / lengths / finished sentences / current length
@@ -122,17 +122,19 @@ for it in tqdm.trange(n_train_steps):
             :, cur_len
         ] = next_words.cpu() * unfinished_sents + params.pad_index * (
             1 - unfinished_sents
-        )
+        )  # if the sentence is finished, we don't update it, just sent it to <PAD>
         gen_len.add_(
             unfinished_sents
-        )  # add 1 to the length of the unfinished sentences
+        )  # add 1 to the length of the unfinished sentences: 1(init)+1(unfinished_sents)+1+1...+1+0(finished)
         unfinished_sents.mul_(
-            next_words.cpu().ne(params.eos_index).long()
+            next_words.cpu()
+            .ne(params.eos_index)
+            .long()  # ne: A boolean tensor that is True where input is not equal to other and False elsewhere
         )  # as soon as we generate <EOS>, set unfinished_sents to 0
         cur_len = cur_len + 1
 
         # loss
-        if flag:
+        if is_detach_form_TB:
             # sample_in_probs = probs.gather(1, next_words.unsqueeze(-1)).squeeze(1)
             # sample_in_probs[unfinished_sents == 0] = 1.
             # ll_diff += sample_in_probs.log()
@@ -155,7 +157,7 @@ for it in tqdm.trange(n_train_steps):
     R = reward_function22(generated, reward_coef, lambda_, beta).to(device)
 
     optim.zero_grad()
-    if flag:
+    if is_detach_form_TB:
         ll_diff -= R.log()
         loss = (ll_diff**2).sum() / batch_size
     else:
