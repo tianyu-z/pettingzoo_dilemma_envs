@@ -72,7 +72,6 @@ for it in tqdm.trange(n_train_steps):
     generated[:, 0].fill_(params.bos_index)  # <BOS> (start token), initial state
 
     # Length of already generated sequences : 1 because of <BOS>
-    # gen_len = (generated != params.pad_index).long().sum(dim=1)
     gen_len = torch.LongTensor(batch_size,).fill_(
         1
     )  # (batch_size,)
@@ -80,11 +79,6 @@ for it in tqdm.trange(n_train_steps):
     unfinished_sents = gen_len.clone().fill_(1)  # (batch_size,)
     # Length of already generated sequences : 1 because of <BOS>
     cur_len = 1
-
-    # Z_test = model(generated[:,:cur_len].to(device), lengths=gen_len.to(device))
-    # #Z_test = Z_test[:,0].squeeze(1).exp().to(device)
-    # Z_test = Z_test.sum(dim=1).squeeze(1).exp().to(device)
-    # print(Z_test)
 
     Z = logZ.exp()
 

@@ -23,9 +23,12 @@ from games import (
 )
 from dilemma_pettingzoo import raw_env, env, parallel_env
 from agents.agent import Agent
-from agents.mediator import Mediator
-from agents.utils import batchify_obs, batchify, unbatchify
+from agents.transformer import make_transformer as Mediator
+from agents.utils import batchify_obs, batchify, unbatchify, AttrDict
 from config import parse_args
+from easydict import EasyDict
+import yaml
+
 
 """ALGORITHM PARAMS"""
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -37,8 +40,19 @@ med_message_size = 2  # 2 bits
 
 if __name__ == "__main__":
 
-    args = parse_args()
+    parser = parse_args(return_parser=True)
+    # Create the parser
+
+    # Load the yaml file into a dictionary
+    with open("configs/gfn.yaml", "r") as file:
+        m_config = yaml.load(file, Loader=yaml.FullLoader)
+
+    # Add the dictionary to the parser as default values
+    parser.add_argument("--mconfig", default=m_config, type=dict)
+    # Parse the arguments
+    args = parser.parse_args()
     print("Exp setting: ", args)
+
     if not args.local:
         import wandb
     end_step = args.max_cycles
@@ -62,7 +76,6 @@ if __name__ == "__main__":
 
     """ LEARNER SETUP """
     # separate policies and optimizers
-    # agent = Agent(num_actions=num_actions).to(device)
     agents = {
         agent: Agent(num_input=num_observations, num_actions=num_actions).to(device)
         for agent in env.agents
@@ -73,9 +86,18 @@ if __name__ == "__main__":
     }
 
     """ MEDIATOR SETUP"""
-
-    mediator = Mediator(num_actions=num_actions * num_agents).to(device)
+    param_dict = args.mconfig["gfn"]
+    GFN_params = EasyDict(param_dict)
+    mediator = Mediator(GFN_params).to(device)
+    logZ = torch.zeros((1,)).to(device)
+    logZ.requires_grad_()
     mediator_optimizer = optim.Adam(mediator.parameters(), lr=args.lr, eps=args.eps)
+    mediator_optimizer = optim.Adam(
+        [
+            {"params": mediator.parameters(), "lr": GFN_params.train.lr},
+            {"params": [logZ], "lr": GFN_params.train.logzlr},
+        ]
+    )
 
     """ TRAINING STORAGE """
     all_obs = {}
@@ -191,7 +213,7 @@ if __name__ == "__main__":
                     _,
                     med_values,
                 ) = mediator.get_action_and_value(obs[0].float(), action=None)
-                med_actions = med_actions.to(device)
+
                 # run the agents
                 policy_outputs = {}
                 for idx, agent in enumerate(agents):

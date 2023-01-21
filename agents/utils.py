@@ -16,6 +16,12 @@ os.environ["SDL_VIDEODRIVER"] = "dummy"
 # https://pettingzoo.farama.org/content/tutorials/
 
 
+class AttrDict(dict):
+    def __init__(self, *args, **kwargs):
+        super(AttrDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
+
+
 def batchify_obs(obs, device):
     """Converts PZ style observations to batch of torch arrays."""
     # convert to list of np arrays

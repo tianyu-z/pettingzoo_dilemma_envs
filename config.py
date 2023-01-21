@@ -1,11 +1,12 @@
 import argparse
 
 
-def parse_args():
+def parse_args(return_parser=False):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--local",
         action="store_true",
+        # action="store_false",
         help="Whether to use wandb for logging",
     )
     parser.add_argument(
@@ -80,7 +81,8 @@ def parse_args():
         default=1e-5,
         help="Epsilon value for the optimizer",
     )
-
-    args = parser.parse_args()
-
-    return args
+    if return_parser:
+        return parser
+    else:
+        args = parser.parse_args()
+        return args
