@@ -5,8 +5,8 @@ def parse_args(return_parser=False):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--local",
-        action="store_true",
-        # action="store_false",
+        # action="store_true",
+        action="store_false",
         help="Whether to use wandb for logging",
     )
     parser.add_argument(

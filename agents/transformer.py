@@ -51,7 +51,7 @@ class TransformerModel(nn.Module):
         # check inputs
         bs, slen = x.size()
         assert lengths.size(0) == bs
-        assert lengths.max().item() <= slen
+        assert lengths.max().item() <= slen  #
 
         # generate masks
         mask = get_padding_masks(slen, lengths)

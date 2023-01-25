@@ -44,7 +44,7 @@ class Prisoners_Dilemma(Game):
         self.NONE = 2
         self.moves = ["COOPERATE", "DEFECT", "None"]
 
-        self.coop = 3  # cooperate-cooperate payoff
+        self.coop = 3.5  # cooperate-cooperate payoff
         self.defect = 1  # defect-defect payoff
         self.temptation = 5  # cooperate-defect (or vice-versa) tempation payoff
         self.sucker = 0  # cooperate-defect (or vice-versa) sucker payoff
