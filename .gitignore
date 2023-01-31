@@ -1,3 +1,5 @@
 wandb/*
 __pycache__/*
 agents/__pycache__/*.pyc
+.vscode/launch.json
+__pycache__/games.cpython-310.pyc
