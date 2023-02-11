@@ -18,6 +18,7 @@ from reward import (
     lambda_,
     beta,
 )
+from visualization import create_gif
 
 
 class AttrDict(dict):
@@ -61,10 +62,14 @@ first_visit_TB = -1 * np.ones_like(true_dist)
 l1log_TB = []
 
 batch_size = 256
-max_len = max_length + 0
+max_len = max_length + 1
 
 # n_train_steps = 1000
-n_train_steps = 5000
+n_train_steps = 500
+
+
+emp_dist_ts = []
+losses = []
 
 for it in tqdm.trange(n_train_steps):
     generated = torch.LongTensor(batch_size, max_len)  # upcoming output
@@ -185,3 +190,9 @@ for it in tqdm.trange(n_train_steps):
         print("L1 =", l1)
         l1log_TB.append((len(all_visited_TB), l1))
         print("gen", generated[-100:])
+        emp_dist_ts.append(emp_dist)
+        losses.append(l1)
+a = emp_dist_ts[0][-1000:]
+print(a)
+losses = ["loss: " + str(losses[i]) for i in range(len(losses))]
+create_gif(emp_ts=emp_dist_ts, true_ts=true_dist, title=losses, filename="500.gif")

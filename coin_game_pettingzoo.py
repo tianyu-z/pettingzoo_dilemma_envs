@@ -44,12 +44,14 @@ class raw_env(AECEnv):
         nb_players=2,
         grid_size=3,
         randomize_coin=False,
+        allow_overlap_players=False,
     ):
         self.nb_players = nb_players
         self.max_cycles = max_cycles
         self.render_mode = "human"
         self.name = "coin_game_v0"
         self.randomize_coin = randomize_coin
+        self.allow_overlap_players = allow_overlap_players
         self._moves = [
             np.array([0, 1]),  # right
             np.array([0, -1]),  # left
@@ -61,12 +63,8 @@ class raw_env(AECEnv):
 
         self.agents = ["player_" + str(r) for r in range(self.nb_players)]
         self.possible_agents = self.agents[:]
-        self.agent_name_mapping = dict(
-            zip(self.agents, list(range(self.nb_players)))
-        )
-        self.action_spaces = {
-            agent: Discrete(num_actions) for agent in self.agents
-        }
+        self.agent_name_mapping = dict(zip(self.agents, list(range(self.nb_players))))
+        self.action_spaces = {agent: Discrete(num_actions) for agent in self.agents}
 
         self.grid_size = grid_size
         self.ob_space_shape = [
@@ -236,9 +234,7 @@ class raw_env(AECEnv):
             if self._agent_selector.is_last():
                 for a in self.agents:
                     print(
-                        "Agent {} reward after action: {} ".format(
-                            a, self.rewards[a]
-                        )
+                        "Agent {} reward after action: {} ".format(a, self.rewards[a])
                     )
                     print(
                         "Agent {} cumulative rewards after action: {} ".format(
@@ -276,16 +272,18 @@ class raw_env(AECEnv):
         self.generate_new_coin = False
 
         self.actions_taken[agent] = action
-        self.player_pos_old = deepcopy(self.player_pos)
-        potential_position = (
-            self.player_pos[self.agent_name_mapping[agent], :]
-            + self._moves[action]
-        ) % self.grid_size
-        if potential_position.tolist() not in self.player_pos.tolist():
-            self.player_pos[
-                self.agent_name_mapping[agent], :
-            ] = potential_position
-        # if this grid already has an agent, stay still
+        if not self.allow_overlap_players:
+            self.player_pos_old = deepcopy(self.player_pos)
+            potential_position = (
+                self.player_pos[self.agent_name_mapping[agent], :] + self._moves[action]
+            ) % self.grid_size
+            if potential_position.tolist() not in self.player_pos.tolist():
+                self.player_pos[self.agent_name_mapping[agent], :] = potential_position
+            # if this grid already has an agent, stay still
+        else:
+            self.player_pos[self.agent_name_mapping[agent], :] = (
+                self.player_pos[self.agent_name_mapping[agent], :] + self._moves[action]
+            ) % self.grid_size
 
         # when all agent is done, update state and generate observations
         if self._agent_selector.is_last():
@@ -301,9 +299,7 @@ class raw_env(AECEnv):
                         self.rewards[a] += 1
                     for k in range(self.nb_players):
                         if k != self.agent_name_mapping[a]:
-                            if self._same_pos(
-                                self.player_pos[k], self.coin_pos
-                            ):
+                            if self._same_pos(self.player_pos[k], self.coin_pos):
                                 self.generate_new_coin = True
                                 self.rewards[a] -= 2
                                 self.rewards["player_" + str(k)] += 1
@@ -321,8 +317,7 @@ class raw_env(AECEnv):
                 self._generate_coin((self.randomize_coin))
             self.num_moves += 1
             self.truncations = {
-                agent: self.num_moves >= self.max_cycles
-                for agent in self.agents
+                agent: self.num_moves >= self.max_cycles for agent in self.agents
             }
             self._generate_state()
             # observe the current states
@@ -354,14 +349,10 @@ if __name__ == "__main__":
     # Run the environment for 10 steps
     for _ in range(1000):
         # Sample a random action
-        actions = {
-            "player_" + str(i): np.random.randint(4) for i in range(nb_agent)
-        }
+        actions = {"player_" + str(i): np.random.randint(4) for i in range(nb_agent)}
 
         #     # Step the environment and get the reward, observation, and done flag
-        observations, rewards, terminations, truncations, infos = env.step(
-            actions
-        )
+        observations, rewards, terminations, truncations, infos = env.step(actions)
 
         #     # Print the reward
         # print(rewards)

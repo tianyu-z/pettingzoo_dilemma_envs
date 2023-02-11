@@ -9,6 +9,7 @@ from games import (
 )
 from copy import deepcopy
 from itertools import product
+from visualization import create_gif, plot_dict, get_top_k
 
 vocab = [
     "0",  # Cooperate, Cooperate
@@ -33,7 +34,7 @@ pad_index = 4
 eos_index = 4 + 1  # or 4 + 1?
 bos_index = eos_index  # we will use <EOS> as <BOS> (start token) everywhere
 vocab_size = len(vocab)
-max_length = 8
+max_length = 4
 
 
 def reward_func(game, actions, is_sum_agent_rewards=False, only_last=False):
@@ -97,3 +98,4 @@ if __name__ == "__main__":
     # print(batch_reward(game, xs, is_sum_agent_rewards=True))
     print(true_dist)
     print(true_dist.shape)
+    plot_dict(get_top_k(true_dist_dict, 20))

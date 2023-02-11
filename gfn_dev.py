@@ -28,6 +28,14 @@ from games import (
     Chicken,
 )
 
+from visualization import (
+    create_gif,
+    create_gif_by_dicts,
+    get_top_k,
+    filter_dict_by_keys,
+    normalize_dict_values,
+)
+
 
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
@@ -72,18 +80,24 @@ first_visit_TB = {}
 l1log_TB = []
 
 batch_size = 256
-max_len = max_length + 0
+max_len = max_length + 0  # +1 for <BOS>
 
 # n_train_steps = 1000
-n_train_steps = 5000
+n_train_steps = 1000
 
+emp_dist_ts = []
+emp_dist_dict_ts = []  # for visualization
+losses = []
+top_k_param_for_vis = 15
 for it in tqdm.trange(n_train_steps):
     generated = torch.LongTensor(batch_size, max_len)  # upcoming output
     generated.fill_(params.pad_index)  # fill upcoming ouput with <PAD>
     generated[:, 0].fill_(params.bos_index)  # <BOS> (start token), initial state
 
     # Length of already generated sequences : 1 because of <BOS>
-    gen_len = torch.LongTensor(batch_size,).fill_(
+    gen_len = torch.LongTensor(
+        batch_size,
+    ).fill_(
         1
     )  # (batch_size,)
     # 1 (True) if the generation of the sequence is not yet finished, 0 (False) otherwise
@@ -180,7 +194,7 @@ for it in tqdm.trange(n_train_steps):
     # for state_idx in range(len(all_visited_TB)):
     #     if first_visit_TB[state_idx] < 0:
     #         first_visit_TB[state_idx] = it
-    for state in all_visited_TB:
+    for state in all_visited_TB:  #
         state = list2string(state)
         if state not in first_visit_TB:
             first_visit_TB[int(state)] = it
@@ -198,6 +212,7 @@ for it in tqdm.trange(n_train_steps):
         )
         all_visited_TB_string = [list2string(x) for x in all_visited_TB]
         Counter_TB = Counter(all_visited_TB_string)
+        Counter_TB = normalize_dict_values(Counter_TB)
         Counter_TB_ = []
         for x in xs_string:
             if x not in Counter_TB:
@@ -214,3 +229,23 @@ for it in tqdm.trange(n_train_steps):
         print("L1 =", l1)
         l1log_TB.append((len(all_visited_TB), l1))
         # print("gen", generated[-100:])
+        emp_dist_ts.append(emp_dist)
+        emp_dist_dict_ts.append(Counter_TB)
+        losses.append(l1)
+a = emp_dist_ts[0][-1000:]
+print(a)
+losses = ["loss: " + str(losses[i]) for i in range(len(losses))]
+top_k_true_dist_dict, top_k_keys = get_top_k(
+    true_dist_dict, top_k_param_for_vis, "true"
+)
+top_k_emp_dist_dict_ts = [
+    filter_dict_by_keys(top_k_keys, emp_dist_dict_ts[i])
+    for i in range(len(emp_dist_dict_ts))
+]
+
+create_gif_by_dicts(
+    emp_ts_dict=top_k_emp_dist_dict_ts,
+    true_ts_dict=top_k_true_dist_dict,
+    title=losses,
+    filename="1000.gif",
+)
