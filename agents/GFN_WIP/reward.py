@@ -46,7 +46,7 @@ vocab_size = len(vocab)
 max_length = 4 + 1
 lambda_ = 2
 beta = 1
-xs = torch.arange(0, int("".join(["9"] * max_length)))
+xs = torch.arange(0, int("".join(["9"] * max_length)) + 1)
 all_rewards = reward_function22(xs, reward_coef, lambda_, beta)
 true_dist = all_rewards.softmax(0).cpu().numpy()
 if __name__ == "__main__":

@@ -5,12 +5,25 @@ from PIL import Image
 
 # Sample data
 def create_gif(
-    emp_ts, true_ts, x_limit=None, y_limit=None, title=None, filename=None, T=None
+    emp_ts,
+    true_ts,
+    x_limit=None,
+    y_limit=None,
+    title=None,
+    filename=None,
+    len_restriction=None,
+    T=None,
 ):  # Create a figure and axis
     fig, ax = plt.subplots()
-    A = np.array(emp_ts)
-    B = np.array(true_ts)
-    isConstantSeries = len(B.shape) == 1
+    emp_ts = np.array(emp_ts)
+    true_ts = np.array(true_ts)
+    if len_restriction is not None:
+        A = emp_ts[:, len_restriction[0] : len_restriction[1]]
+    isConstantSeries = len(true_ts.shape) == 1
+    if len_restriction is not None and isConstantSeries:
+        B = true_ts[len_restriction[0] : len_restriction[1]]
+    if len_restriction is not None and (not isConstantSeries):
+        B = true_ts[:, len_restriction[0] : len_restriction[1]]
     if T is None and A.shape == B.shape:
         # both A and B are series that vary over time
         # T , n = A.shape

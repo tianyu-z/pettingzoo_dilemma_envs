@@ -77,7 +77,9 @@ for it in tqdm.trange(n_train_steps):
     generated[:, 0].fill_(params.bos_index)  # <BOS> (start token), initial state
 
     # Length of already generated sequences : 1 because of <BOS>
-    gen_len = torch.LongTensor(batch_size,).fill_(
+    gen_len = torch.LongTensor(
+        batch_size,
+    ).fill_(
         1
     )  # (batch_size,)
     # 1 (True) if the generation of the sequence is not yet finished, 0 (False) otherwise
@@ -195,4 +197,10 @@ for it in tqdm.trange(n_train_steps):
 a = emp_dist_ts[0][-1000:]
 print(a)
 losses = ["loss: " + str(losses[i]) for i in range(len(losses))]
-create_gif(emp_ts=emp_dist_ts, true_ts=true_dist, title=losses, filename="500.gif")
+create_gif(
+    emp_ts=emp_dist_ts,
+    true_ts=true_dist,
+    title=losses,
+    filename="500.gif",
+    len_restriction=[0, 10000],
+)

@@ -169,7 +169,7 @@ for it in tqdm.trange(n_train_steps):
             break
 
     generated = generated.apply_(
-        lambda index: 4 if index == pad_index or index == eos_index else index
+        lambda index: 5 if index == pad_index or index == eos_index else index
     )
     # R = reward_function(generated, reward_coef, lambda_, beta).to(device)
     generated = generated.tolist()
