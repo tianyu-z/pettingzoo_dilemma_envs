@@ -3,7 +3,7 @@ import torch
 import tqdm
 import torch.nn.functional as F
 import numpy as np
-from agents.GFN_WIP.transformer import TransformerModel, make_mlp
+from agents.GFN_example_from_tutorial.transformer import TransformerModel, make_mlp
 
 from reward import batch_reward, get_true_dist, list2string
 
