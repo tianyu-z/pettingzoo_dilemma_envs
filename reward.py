@@ -116,7 +116,7 @@ def get_true_dist(args):
 
 if __name__ == "__main__":
     args = get_merged_args()
-    true_dist, true_dist_dict = get_true_dist(args)
+    true_dist, true_dist_dict, xs_string = get_true_dist(args)
     print(true_dist)
     print(true_dist.shape)
     plot_dict(get_top_k(true_dist_dict, 20))
