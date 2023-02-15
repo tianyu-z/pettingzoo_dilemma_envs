@@ -1,0 +1,16 @@
+gfn:
+    n_hid: 256
+    n_layers: 2
+    emb_dim: 100
+    pad_index: 10
+    eos_index: 11
+    bos_index: 11
+    n_words: 12
+    max_length: 5
+    P_B: 1args
+    train:
+      lambda_: 2
+      beta: 1
+      reward_coef: 81
+      lr: 0.001
+      logzlr: 0.01

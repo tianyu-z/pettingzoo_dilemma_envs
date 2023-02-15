@@ -9,6 +9,7 @@ from gymnasium.spaces import Discrete
 from pettingzoo import AECEnv
 from pettingzoo.utils import agent_selector, wrappers
 from pettingzoo.utils.conversions import parallel_wrapper_fn
+
 SEED = 42
 from copy import deepcopy
 
@@ -43,12 +44,14 @@ class raw_env(AECEnv):
         nb_players=2,
         grid_size=3,
         randomize_coin=False,
+        allow_overlap_players=False,
     ):
         self.nb_players = nb_players
         self.max_cycles = max_cycles
         self.render_mode = "human"
         self.name = "coin_game_v0"
         self.randomize_coin = randomize_coin
+        self.allow_overlap_players = allow_overlap_players
         self._moves = [
             np.array([0, 1]),  # right
             np.array([0, -1]),  # left
@@ -78,9 +81,17 @@ class raw_env(AECEnv):
             for agent in self.agents
         }  # init the location of agents and the coin player_x, player_y, coin_x, coin_y, has_coin
         self.observation_spaces = {
-            agent: Discrete((len(self.state["player_0"].values()) + 1 + 1) * self.nb_players) for agent in self.agents
+            agent: Discrete(
+                (len(self.state["player_0"].values()) + 1 + 1) * self.nb_players
+            )
+            for agent in self.agents
         }
-        self.observations = {agent: [0] * (len(self.state["player_0"].values()) + 1 + 1) * self.nb_players for agent in self.agents}
+        self.observations = {
+            agent: [0]
+            * (len(self.state["player_0"].values()) + 1 + 1)
+            * self.nb_players
+            for agent in self.agents
+        }
         self.coin_pos = -1 * np.ones(2, dtype=np.int8)
         self.coin_pos_old = deepcopy(self.coin_pos)
         self.player_pos = -1 * np.ones(
@@ -114,7 +125,9 @@ class raw_env(AECEnv):
 
         if randomize:
             # next coin belong to a random agent
-            self.player_coin = self.agent_picker_buffer[self.agent_picker_idx % self.nb_players]
+            self.player_coin = self.agent_picker_buffer[
+                self.agent_picker_idx % self.nb_players
+            ]
             self.agent_picker_idx += 1
             if self.agent_picker_idx % self.nb_players == 0:
                 random.shuffle(self.agent_picker_buffer)
@@ -178,7 +191,12 @@ class raw_env(AECEnv):
         self.actions_taken = {agent: None for agent in self.agents}
 
         self._generate_state()
-        self.observations = {agent: [0] * (len(self.state["player_0"].values()) + 1 + 1) * self.nb_players for agent in self.agents}
+        self.observations = {
+            agent: [0]
+            * (len(self.state["player_0"].values()) + 1 + 1)
+            * self.nb_players
+            for agent in self.agents
+        }
         self.num_moves = 0
 
     def render(self):
@@ -199,7 +217,8 @@ class raw_env(AECEnv):
             # print("Players information: ")
             print(
                 "Agent {} position before action: {} ".format(
-                    agent, self.player_pos_old[self.agent_name_mapping[agent], :]
+                    agent,
+                    self.player_pos_old[self.agent_name_mapping[agent], :],
                 )
             )
             print(
@@ -214,8 +233,14 @@ class raw_env(AECEnv):
             )
             if self._agent_selector.is_last():
                 for a in self.agents:
-                    print("Agent {} reward after action: {} ".format(a, self.rewards[a]))
-                    print("Agent {} cumulative rewards after action: {} ".format(a, self._cumulative_rewards[a]))
+                    print(
+                        "Agent {} reward after action: {} ".format(a, self.rewards[a])
+                    )
+                    print(
+                        "Agent {} cumulative rewards after action: {} ".format(
+                            a, self._cumulative_rewards[a]
+                        )
+                    )
         else:
             print("Game over")
         print("\n")
@@ -247,13 +272,18 @@ class raw_env(AECEnv):
         self.generate_new_coin = False
 
         self.actions_taken[agent] = action
-        self.player_pos_old = deepcopy(self.player_pos)
-        potential_position = (
-            self.player_pos[self.agent_name_mapping[agent], :] + self._moves[action]
-        ) % self.grid_size
-        if potential_position.tolist() not in self.player_pos.tolist():
-            self.player_pos[self.agent_name_mapping[agent], :] = potential_position
-        # if this grid already has an agent, stay still
+        if not self.allow_overlap_players:
+            self.player_pos_old = deepcopy(self.player_pos)
+            potential_position = (
+                self.player_pos[self.agent_name_mapping[agent], :] + self._moves[action]
+            ) % self.grid_size
+            if potential_position.tolist() not in self.player_pos.tolist():
+                self.player_pos[self.agent_name_mapping[agent], :] = potential_position
+            # if this grid already has an agent, stay still
+        else:
+            self.player_pos[self.agent_name_mapping[agent], :] = (
+                self.player_pos[self.agent_name_mapping[agent], :] + self._moves[action]
+            ) % self.grid_size
 
         # when all agent is done, update state and generate observations
         if self._agent_selector.is_last():
@@ -262,7 +292,8 @@ class raw_env(AECEnv):
                 # compute rewards
                 if self.player_coin == self.agent_name_mapping[a]:
                     if self._same_pos(
-                        self.player_pos[self.agent_name_mapping[a]], self.coin_pos
+                        self.player_pos[self.agent_name_mapping[a]],
+                        self.coin_pos,
                     ):
                         self.generate_new_coin = True
                         self.rewards[a] += 1
@@ -279,7 +310,7 @@ class raw_env(AECEnv):
 
         if self.render_mode == "human":
             self.render()
-        
+
         if self._agent_selector.is_last():
             self.coin_pos_old = deepcopy(self.coin_pos)
             if self.generate_new_coin:
@@ -297,14 +328,19 @@ class raw_env(AECEnv):
         self.agent_selection = self._agent_selector.next()
 
 
-
 if __name__ == "__main__":
     if SEED is not None:
         random.seed(SEED)
         np.random.seed(SEED)
     # from pettingzoo.test import parallel_api_test
 
-    env = parallel_env(render_mode="human", nb_players=3, grid_size=4, max_cycles=1000, randomize_coin=True)
+    env = parallel_env(
+        render_mode="human",
+        nb_players=3,
+        grid_size=4,
+        max_cycles=1000,
+        randomize_coin=True,
+    )
     # parallel_api_test(env, num_cycles=1000)
 
     # Reset the environment and get the initial observation
@@ -313,14 +349,14 @@ if __name__ == "__main__":
     # Run the environment for 10 steps
     for _ in range(1000):
         # Sample a random action
-        actions = {"player_"+str(i): np.random.randint(4) for i in range(nb_agent)}
+        actions = {"player_" + str(i): np.random.randint(4) for i in range(nb_agent)}
 
-    #     # Step the environment and get the reward, observation, and done flag
+        #     # Step the environment and get the reward, observation, and done flag
         observations, rewards, terminations, truncations, infos = env.step(actions)
 
-    #     # Print the reward
+        #     # Print the reward
         # print(rewards)
 
-    #     # If the game is over, reset the environment
+        #     # If the game is over, reset the environment
         if terminations["player_0"]:
             obs = env.reset()

@@ -1,0 +1,28 @@
+game_type: PD
+vocab:
+- 0
+- 1
+- 2
+- 3
+- "."
+- ","
+pad_index: 4
+bos_index: 5
+eos_index: 5
+max_len: 7
+# GFN params
+resume: 0 # boolean
+resume_path: "./"
+emb_dim: 128
+n_hid: 256
+n_layers: 2 # num MLP layers for the GFN
+batch_size: 256 
+n_train_steps: 1500 # num of training step of GFN
+is_detach_form_TB: 1 # Pls make this always 1
+visualize_last: 1 # boolean
+visualize_every_eval: 1 # boolean
+eval_every: 100 # eval for every "eval_every" iters
+save_when_eval: 1 # boolean
+save_max: 3 # the max checkpoint will be saved in the save_name folder
+save_name: "" # the folder include the checkpoints
+top_k_param_for_vis: 15 # In visualization of the emp_dist, how much top instance you want to visualize in the axis
