@@ -2,6 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 import torch
+import os
+import glob
+import time
 
 
 # Sample data
@@ -246,8 +249,6 @@ def get_hex_time():
     Description:
         get the current time in the format "DD/MM/YY HH:MM:SS" and convert it to a hexadecimal string
     """
-    import time
-
     current_time = time.strftime("%d/%m/%y %H:%M:%S", time.localtime())
     # convert the timestamp string to a Unix timestamp
     unix_time = int(time.mktime(time.strptime(current_time, "%d/%m/%y %H:%M:%S")))
@@ -259,12 +260,12 @@ def get_hex_time():
 
 
 def hex_to_time(hex_time):
-    '''
+    """
     input:
         hex_time: str
     description:
         convert a hexadecimal string to a timestamp string in the format "DD/MM/YY HH:MM:SS"
-    '''
+    """
     # convert the hexadecimal string to a Unix timestamp
     unix_time = int(hex_time, 16)
 
@@ -272,6 +273,20 @@ def hex_to_time(hex_time):
     time_str = time.strftime("%d/%m/%y %H:%M:%S", time.localtime(unix_time))
 
     return time_str
+
+
+def delete_oldest_files(directory, max_count, prefix="checkpoint"):
+    # Get a list of files in the directory that match the prefix
+    file_list = sorted(glob.glob(os.path.join(directory, f"{prefix}*")))
+
+    # If the number of files is less than or equal to the maximum count, do nothing
+    if len(file_list) <= max_count:
+        return
+
+    # Otherwise, sort the files by modification time (oldest first) and delete the oldest ones
+    file_list = sorted(file_list, key=lambda f: os.stat(f).st_mtime)
+    for i in range(len(file_list) - max_count):
+        os.remove(file_list[i])
 
 
 if __name__ == "__main__":

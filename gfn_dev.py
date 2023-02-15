@@ -23,6 +23,8 @@ from utils import (
     normalize_dict_values,
     save_pt,
     load_pt,
+    get_hex_time,
+    delete_oldest_files,
 )
 
 
@@ -56,7 +58,13 @@ def main():
         optim.load_state_dict(checkpoint_dict["GFN_optimizer_state_dict"])
         logZ += checkpoint_dict["logZ"]
         print("Loaded model from checkpoint")
-
+    if args.save_when_eval:
+        if args.save_name is None or args.save_name == "":
+            saving_folder_name = get_hex_time()
+        else:
+            saving_folder_name = args.save_name
+        if not os.path.exists(f"./checkpoints/{saving_folder_name}"):
+            os.makedirs(f"./checkpoints/{saving_folder_name}")
     logZ.requires_grad_()
     true_dist, true_dist_dict, xs_string = get_true_dist(args)
     # for training
@@ -106,13 +114,8 @@ def main():
             emp_dist_ts.append(emp_dist)
             emp_dist_dict_ts.append(Counter_TB)
             eval_metrics.append(l1)
+
             if args.save_when_eval:
-                if args.save_name is None or args.save_name == "":
-                    folder_name = "get_hex_time"
-                else:
-                    folder_name = args.save_name
-                if not os.path.exists(f"./checkpoints/{folder_name}"):
-                    os.makedirs(f"./checkpoints/{folder_name}")
                 save_pt(
                     {
                         "eval_metrics": eval_metrics,
@@ -122,8 +125,14 @@ def main():
                         "GFN_model_state_dict": model.state_dict(),
                         "GFN_optimizer_state_dict": optim.state_dict(),
                     },
-                    f"./checkpoints/{folder_name}/checkpoints_{it}.pt",
+                    f"./checkpoints/{saving_folder_name}/checkpoints_{it}.pt",
                 )
+                # only save the lastest ones (number of saved files = args.save_max)
+                assert isinstance(args.save_max, int), "save_max must be an integer"
+                if args.save_max > 0:
+                    delete_oldest_files(
+                        f"./checkpoints/{saving_folder_name}", args.save_max
+                    )
             if args.visualize_every_eval:
                 visualize_evaluation(
                     args, eval_metrics, emp_dist_dict_ts, true_dist_dict
