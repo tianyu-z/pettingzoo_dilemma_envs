@@ -95,6 +95,10 @@ def string2list(s):
     return [int(i) for i in list(s)]
 
 
+def softmax(x):
+    return np.exp(x) / np.sum(np.exp(x), axis=0)
+
+
 def get_true_dist(args):
     if args.game_type == "PD":
         game = Prisoners_Dilemma()
@@ -108,13 +112,14 @@ def get_true_dist(args):
     xs = list(product([0, 1, 2, 3], repeat=args.max_len - 1))
     xs = [[args.bos_index] + list(x) for x in xs]  # begin with <EOS>
     xs_string = [list2string(x) for x in xs]
-    all_rewards = batch_reward(game, xs, is_sum_agent_rewards=True)
+    all_rewards = batch_reward(game, xs, is_sum_agent_rewards=True)  # [7, 5, 5, 2]
     true_dist = torch.tensor(all_rewards).softmax(0).cpu().numpy()
     true_dist_dict = {k: v for k, v in zip(xs_string, true_dist)}
     return true_dist, true_dist_dict, xs_string
 
 
 if __name__ == "__main__":
+    print(torch.__version__)
     args = get_merged_args()
     true_dist, true_dist_dict, xs_string = get_true_dist(args)
     print(true_dist)

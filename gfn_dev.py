@@ -21,6 +21,8 @@ from visualization import (
     get_top_k,
     filter_dict_by_keys,
     normalize_dict_values,
+    save_pt,
+    load_pt,
 )
 
 
@@ -37,6 +39,7 @@ def main(visualize=True):
 
     setattr(args, "n_words", len(args.vocab))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     logZ = torch.zeros((1,)).to(device)
     mlp = make_mlp([args.emb_dim] + [args.n_hid] * args.n_layers + [args.n_words]).to(
         device
@@ -46,6 +49,14 @@ def main(visualize=True):
     optim = torch.optim.Adam(
         [{"params": model.parameters(), "lr": 0.001}, {"params": [logZ], "lr": 0.01}]
     )
+
+    if args.resume:
+        checkpoint_dict = load_pt(args.resume_path)
+        model.load_state_dict(checkpoint_dict["GFN_model_state_dict"])
+        optim.load_state_dict(checkpoint_dict["GFN_optimizer_state_dict"])
+        logZ += checkpoint_dict["logZ"]
+        print("Loaded model from checkpoint")
+
     logZ.requires_grad_()
     true_dist, true_dist_dict, xs_string = get_true_dist(args)
     # for training
@@ -64,7 +75,7 @@ def main(visualize=True):
 
     for it in tqdm.trange(args.n_train_steps):
         # train one step
-        loss_item, Z_item, R_mean, generated = train_one_step(
+        loss_item, Z_item, R_mean, generated, model, optim = train_one_step(
             args, logZ, model, optim, game, device, true_dist, true_dist_dict, xs_string
         )
         # logging stuff
@@ -95,6 +106,17 @@ def main(visualize=True):
             emp_dist_ts.append(emp_dist)
             emp_dist_dict_ts.append(Counter_TB)
             eval_metrics.append(l1)
+            save_pt(
+                {
+                    "eval_metrics": eval_metrics,
+                    "emp_dist_dict_ts": emp_dist_dict_ts,
+                    "true_dist_dict": true_dist_dict,
+                    "log_Z_item": np.log(Z_item),
+                    "GFN_model_state_dict": model.state_dict(),
+                    "GFN_optimizer_state_dict": optim.state_dict(),
+                },
+                "./checkpoints/checkpoints_{}.pt".format(it),
+            )
     if visualize:
         visualize_evaluation(args, eval_metrics, emp_dist_dict_ts, true_dist_dict)
 
@@ -187,14 +209,14 @@ def train_one_step(
 
     optim.zero_grad()
     if args.is_detach_form_TB:
-        ll_diff -= R.log()
+        ll_diff -= R
         loss = (ll_diff**2).sum() / args.batch_size
     else:
         loss = ((Z * in_probs / R).log() ** 2).sum() / args.batch_size
 
     loss.backward()
     optim.step()
-    return loss.item(), Z.item(), R.mean().cpu(), generated
+    return loss.item(), Z.item(), R.mean().cpu(), generated, model, optim
 
 
 def evaluate_TB(all_visited_TB, true_dist, true_dist_dict, xs_string):
@@ -216,6 +238,7 @@ def evaluate_TB(all_visited_TB, true_dist, true_dist_dict, xs_string):
     emp_dist /= emp_dist.sum()
     l1 = np.abs(true_dist - emp_dist).mean()
     print("L1 =", l1)
+    print("emp_dist: ", emp_dist)
     return (len(all_visited_TB), l1), emp_dist, Counter_TB, l1
 
     # visualization of the evaluation

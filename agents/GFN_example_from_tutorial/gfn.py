@@ -65,7 +65,7 @@ batch_size = 256
 max_len = max_length + 1
 
 # n_train_steps = 1000
-n_train_steps = 500
+n_train_steps = 1500
 
 
 emp_dist_ts = []
@@ -202,5 +202,7 @@ create_gif(
     true_ts=true_dist,
     title=losses,
     filename="500.gif",
-    len_restriction=[0, 10000],
+    len_restriction=[0, 4000],
 )
+print("emp_ts", emp_dist_ts[-1])
+print("true_ts", true_dist)

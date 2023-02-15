@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
+import torch
 
 
 # Sample data
@@ -217,6 +218,27 @@ def normalize_dict_values(d):
     """
     total = sum(d.values())
     return {k: v / total for k, v in d.items()}
+
+
+def save_pt(pt, filename):
+    """
+    input:
+        pt: torch.tensor or dictionary
+        filename: str
+    description:
+        save a torch.tensor to a file
+    """
+    torch.save(pt, filename)
+
+
+def load_pt(filename):
+    """
+    input:
+        filename: str
+    description:
+        load a torch.tensor from a file
+    """
+    return torch.load(filename)
 
 
 if __name__ == "__main__":
