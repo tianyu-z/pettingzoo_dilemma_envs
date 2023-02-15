@@ -26,7 +26,7 @@ from visualization import (
 )
 
 
-def main(visualize=True):
+def main():
     args = get_merged_args()
     if args.game_type == "PD":
         game = Prisoners_Dilemma()
@@ -117,7 +117,11 @@ def main(visualize=True):
                 },
                 "./checkpoints/checkpoints_{}.pt".format(it),
             )
-    if visualize:
+            if args.visualize_every_eval:
+                visualize_evaluation(
+                    args, eval_metrics, emp_dist_dict_ts, true_dist_dict
+                )
+    if args.visualize_last and (not args.visual_every_eval):
         visualize_evaluation(args, eval_metrics, emp_dist_dict_ts, true_dist_dict)
 
 
@@ -265,4 +269,4 @@ def visualize_evaluation(args, eval_metrics, emp_dist_dict_ts, true_dist_dict):
 
 
 if __name__ == "__main__":
-    main(visualize=True)
+    main()
