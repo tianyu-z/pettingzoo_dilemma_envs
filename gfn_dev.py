@@ -39,6 +39,7 @@ def main():
     elif args.game_type == "CH":
         game = Chicken()
 
+    # init
     setattr(args, "n_words", len(args.vocab))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -52,12 +53,15 @@ def main():
         [{"params": model.parameters(), "lr": 0.001}, {"params": [logZ], "lr": 0.01}]
     )
 
+    # check if resume
     if args.resume:
         checkpoint_dict = load_pt(args.resume_path)
         model.load_state_dict(checkpoint_dict["GFN_model_state_dict"])
         optim.load_state_dict(checkpoint_dict["GFN_optimizer_state_dict"])
         logZ += checkpoint_dict["logZ"]
         print("Loaded model from checkpoint")
+
+    # check if saving config
     if args.save_when_eval:
         if args.save_name is None or args.save_name == "":
             saving_folder_name = get_hex_time()
@@ -65,8 +69,11 @@ def main():
             saving_folder_name = args.save_name
         if not os.path.exists(f"./checkpoints/{saving_folder_name}"):
             os.makedirs(f"./checkpoints/{saving_folder_name}")
+
+    # init true distribution and z
     logZ.requires_grad_()
     true_dist, true_dist_dict, xs_string = get_true_dist(args)
+
     # for training
     losses_TB = []
     zs_TB = []
@@ -98,7 +105,7 @@ def main():
             elif first_visit_TB[state] < 0:
                 first_visit_TB[int(state)] = it
         # start evaluation
-        if it % args.eval_every == 0:
+        if it % args.eval_every == 0 and it > 0:
             print(
                 "\nloss =",
                 np.array(losses_TB[-100:]).mean(),
@@ -134,11 +141,24 @@ def main():
                         f"./checkpoints/{saving_folder_name}", args.save_max
                     )
             if args.visualize_every_eval:
+                filename_gif = args.filename_gif
                 visualize_evaluation(
-                    args, eval_metrics, emp_dist_dict_ts, true_dist_dict
+                    args,
+                    eval_metrics,
+                    emp_dist_dict_ts,
+                    true_dist_dict,
+                    saving_folder_name=f"./checkpoints/{saving_folder_name}",
+                    filename_gif=f"{filename_gif}_checkpoints_{it}.gif",
                 )
     if args.visualize_last and (not args.visualize_every_eval):
-        visualize_evaluation(args, eval_metrics, emp_dist_dict_ts, true_dist_dict)
+        visualize_evaluation(
+            args,
+            eval_metrics,
+            emp_dist_dict_ts,
+            true_dist_dict,
+            saving_folder_name=f"./checkpoints/{saving_folder_name}",
+            filename_gif=f"{filename_gif}_last.gif",
+        )
 
 
 def train_one_step(
@@ -264,7 +284,14 @@ def evaluate_TB(all_visited_TB, true_dist, true_dist_dict, xs_string):
     # visualization of the evaluation
 
 
-def visualize_evaluation(args, eval_metrics, emp_dist_dict_ts, true_dist_dict):
+def visualize_evaluation(
+    args,
+    eval_metrics,
+    emp_dist_dict_ts,
+    true_dist_dict,
+    saving_folder_name,
+    filename_gif,
+):
     eval_metrics_ = [
         "eval_metrics: " + str(eval_metrics[i]) for i in range(len(eval_metrics))
     ]
@@ -275,12 +302,14 @@ def visualize_evaluation(args, eval_metrics, emp_dist_dict_ts, true_dist_dict):
         filter_dict_by_keys(top_k_keys, emp_dist_dict_ts[i])
         for i in range(len(emp_dist_dict_ts))
     ]
-
+    if filename_gif is None or filename_gif == "":
+        filename_gif = "output.gif"
+    filename_gif = os.path.join(saving_folder_name, filename_gif)
     create_gif_by_dicts(
         emp_ts_dict=top_k_emp_dist_dict_ts,
         true_ts_dict=top_k_true_dist_dict,
         title=eval_metrics_,
-        filename="1000.gif",
+        filename=filename_gif,
     )
 
 

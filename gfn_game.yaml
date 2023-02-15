@@ -26,3 +26,4 @@ save_when_eval: 1 # boolean
 save_max: 3 # the max checkpoint will be saved in the save_name folder
 save_name: "" # the folder include the checkpoints
 top_k_param_for_vis: 15 # In visualization of the emp_dist, how much top instance you want to visualize in the axis
+filename_gif: "" # The filename of the gif which is the visualization saving output
