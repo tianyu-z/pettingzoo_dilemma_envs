@@ -18,7 +18,7 @@ from reward import (
     lambda_,
     beta,
 )
-from visualization import create_gif
+from utils import create_gif
 
 
 class AttrDict(dict):

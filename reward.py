@@ -9,7 +9,7 @@ from games import (
 )
 from copy import deepcopy
 from itertools import product
-from visualization import create_gif, plot_dict, get_top_k
+from utils import create_gif, plot_dict, get_top_k
 from gfn_config import get_merged_args
 
 

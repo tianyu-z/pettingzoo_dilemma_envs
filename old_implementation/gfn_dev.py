@@ -28,7 +28,7 @@ from games import (
     Chicken,
 )
 
-from visualization import (
+from utils import (
     create_gif,
     create_gif_by_dicts,
     get_top_k,
