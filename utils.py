@@ -241,6 +241,39 @@ def load_pt(filename):
     return torch.load(filename)
 
 
+def get_hex_time():
+    """
+    Description:
+        get the current time in the format "DD/MM/YY HH:MM:SS" and convert it to a hexadecimal string
+    """
+    import time
+
+    current_time = time.strftime("%d/%m/%y %H:%M:%S", time.localtime())
+    # convert the timestamp string to a Unix timestamp
+    unix_time = int(time.mktime(time.strptime(current_time, "%d/%m/%y %H:%M:%S")))
+
+    # convert the Unix timestamp to a hexadecimal string
+    hex_time = hex(unix_time)[2:]
+
+    return hex_time
+
+
+def hex_to_time(hex_time):
+    '''
+    input:
+        hex_time: str
+    description:
+        convert a hexadecimal string to a timestamp string in the format "DD/MM/YY HH:MM:SS"
+    '''
+    # convert the hexadecimal string to a Unix timestamp
+    unix_time = int(hex_time, 16)
+
+    # convert the Unix timestamp to a timestamp string in the format "DD/MM/YY HH:MM:SS"
+    time_str = time.strftime("%d/%m/%y %H:%M:%S", time.localtime(unix_time))
+
+    return time_str
+
+
 if __name__ == "__main__":
     A = np.random.rand(100, 10)
     B = np.random.rand(10)

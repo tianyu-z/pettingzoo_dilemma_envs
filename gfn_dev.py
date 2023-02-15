@@ -6,7 +6,7 @@ import numpy as np
 from agents.GFN_example_from_tutorial.transformer import TransformerModel, make_mlp
 
 from reward import batch_reward, get_true_dist, list2string
-
+import os
 from collections import Counter
 from games import (
     Prisoners_Dilemma,
@@ -15,7 +15,7 @@ from games import (
     Chicken,
 )
 
-from visualization import (
+from utils import (
     create_gif,
     create_gif_by_dicts,
     get_top_k,
@@ -90,7 +90,7 @@ def main():
             elif first_visit_TB[state] < 0:
                 first_visit_TB[int(state)] = it
         # start evaluation
-        if it % 100 == 0:
+        if it % args.eval_every == 0:
             print(
                 "\nloss =",
                 np.array(losses_TB[-100:]).mean(),
@@ -106,17 +106,24 @@ def main():
             emp_dist_ts.append(emp_dist)
             emp_dist_dict_ts.append(Counter_TB)
             eval_metrics.append(l1)
-            save_pt(
-                {
-                    "eval_metrics": eval_metrics,
-                    "emp_dist_dict_ts": emp_dist_dict_ts,
-                    "true_dist_dict": true_dist_dict,
-                    "log_Z_item": np.log(Z_item),
-                    "GFN_model_state_dict": model.state_dict(),
-                    "GFN_optimizer_state_dict": optim.state_dict(),
-                },
-                "./checkpoints/checkpoints_{}.pt".format(it),
-            )
+            if args.save_when_eval:
+                if args.save_name is None or args.save_name == "":
+                    folder_name = "get_hex_time"
+                else:
+                    folder_name = args.save_name
+                if not os.path.exists(f"./checkpoints/{folder_name}"):
+                    os.makedirs(f"./checkpoints/{folder_name}")
+                save_pt(
+                    {
+                        "eval_metrics": eval_metrics,
+                        "emp_dist_dict_ts": emp_dist_dict_ts,
+                        "true_dist_dict": true_dist_dict,
+                        "log_Z_item": np.log(Z_item),
+                        "GFN_model_state_dict": model.state_dict(),
+                        "GFN_optimizer_state_dict": optim.state_dict(),
+                    },
+                    f"./checkpoints/{folder_name}/checkpoints_{it}.pt",
+                )
             if args.visualize_every_eval:
                 visualize_evaluation(
                     args, eval_metrics, emp_dist_dict_ts, true_dist_dict
