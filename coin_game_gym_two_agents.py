@@ -39,9 +39,7 @@ class CoinGameVec:
         self.step_count = 0
         self.red_coin = prng.np_random.randint(2, size=self.batch_size)
         # Agent and coin positions
-        self.red_pos = prng.np_random.randint(
-            self.grid_size, size=(self.batch_size, 2)
-        )
+        self.red_pos = prng.np_random.randint(self.grid_size, size=(self.batch_size, 2))
         self.blue_pos = prng.np_random.randint(
             self.grid_size, size=(self.batch_size, 2)
         )
@@ -49,9 +47,7 @@ class CoinGameVec:
         for i in range(self.batch_size):
             # Make sure coins don't overlap
             while self._same_pos(self.red_pos[i], self.blue_pos[i]):
-                self.blue_pos[i] = prng.np_random.randint(
-                    self.grid_size, size=2
-                )
+                self.blue_pos[i] = prng.np_random.randint(self.grid_size, size=2)
             self._generate_coin(i)
         return self._generate_state()
 
@@ -84,12 +80,8 @@ class CoinGameVec:
             assert ac0 in {0, 1, 2, 3} and ac1 in {0, 1, 2, 3}
 
             # Move players
-            self.red_pos[j] = (
-                self.red_pos[j] + self.MOVES[ac0]
-            ) % self.grid_size
-            self.blue_pos[j] = (
-                self.blue_pos[j] + self.MOVES[ac1]
-            ) % self.grid_size
+            self.red_pos[j] = (self.red_pos[j] + self.MOVES[ac0]) % self.grid_size
+            self.blue_pos[j] = (self.blue_pos[j] + self.MOVES[ac1]) % self.grid_size
 
         # Compute rewards
         reward_red, reward_blue = [], []
@@ -127,10 +119,7 @@ class CoinGameVec:
         reward = [np.array(reward_red), np.array(reward_blue)]
         self.step_count += 1
         done = np.array(
-            [
-                (self.step_count == self.max_steps)
-                for _ in range(self.batch_size)
-            ]
+            [(self.step_count == self.max_steps) for _ in range(self.batch_size)]
         )
         state = self._generate_state()
 
