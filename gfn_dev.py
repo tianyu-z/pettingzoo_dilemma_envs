@@ -137,7 +137,7 @@ def main():
                 visualize_evaluation(
                     args, eval_metrics, emp_dist_dict_ts, true_dist_dict
                 )
-    if args.visualize_last and (not args.visual_every_eval):
+    if args.visualize_last and (not args.visualize_every_eval):
         visualize_evaluation(args, eval_metrics, emp_dist_dict_ts, true_dist_dict)
 
 
