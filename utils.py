@@ -384,7 +384,7 @@ def plot_action_accumulative_frequency(
 ):
     """Plot the accumulative frequency of actions
     Args:
-        loaded: a list of loaded data
+        loaded: a list of loaded data, it is from the loaded checkpoints from the two_player_game.py
         plot_bounds: if True, plot the upper and lower bounds of the mean
         interested_action: if not None, only plot the accumulative frequency of this action
         beta: the beta value for the upper and lower bounds (lower = mean - beta * std; upper = mean + beta * std),
@@ -491,5 +491,7 @@ if __name__ == "__main__":
     # B = np.random.rand(10)
     # create_gif(A, B, title="test", filename="test.gif")
     # test plot accumulative graph
-    loaded = load_pt("loggings.pt")
+    loaded = load_pt(
+        "loggings.pt"
+    )  # this is from the two_player_game.py, we save the evaluation results in this file
     plot_action_accumulative_frequency(loaded, plot_bounds=True)
