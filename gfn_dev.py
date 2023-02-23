@@ -28,7 +28,7 @@ from utils import (
 )
 
 
-def main():
+def init():
     args = get_merged_args()
     if args.game_type == "PD":
         game = Prisoners_Dilemma()
@@ -52,7 +52,12 @@ def main():
     optim = torch.optim.Adam(
         [{"params": model.parameters(), "lr": 0.001}, {"params": [logZ], "lr": 0.01}]
     )
+    return args, game, logZ, model, optim, device
 
+
+def main():
+    # init
+    args, game, logZ, model, optim, device = init()
     # check if resume
     if args.resume:
         checkpoint_dict = load_pt(args.resume_path)
@@ -159,6 +164,7 @@ def main():
             saving_folder_name=f"./checkpoints/{saving_folder_name}",
             filename_gif=f"{filename_gif}_last.gif",
         )
+    #
 
 
 def train_one_step(
@@ -218,7 +224,7 @@ def train_one_step(
         unfinished_sents.mul_(
             next_words.cpu()
             .ne(args.eos_index)
-            .long()  # ne: A boolean tensor that is True where input is not equal to other and False elsewhere
+            .long()  # neargs: A boolean tensor that is True where input is not equal to other and False elsewhere
         )  # as soon as we generate <EOS>, set unfinished_sents to 0
         cur_len = cur_len + 1
 
@@ -311,6 +317,80 @@ def visualize_evaluation(
         title=eval_metrics_,
         filename=filename_gif,
     )
+
+
+def sample(args, model, device, game, num_samples):
+    samples = []
+    samples_R = []
+
+    for it in tqdm.trange(num_samples):
+        generated = torch.LongTensor(args.batch_size, args.max_len)  # upcoming output
+        generated.fill_(args.pad_index)  # fill upcoming ouput with <PAD>
+        generated[:, 0].fill_(args.bos_index)  # <BOS> (start token), initial state
+
+        # Length of already generated sequences : 1 because of <BOS>
+        gen_len = torch.LongTensor(
+            args.batch_size,
+        ).fill_(
+            1
+        )  # (batch_size,)
+        # 1 (True) if the generation of the sequence is not yet finished, 0 (False) otherwise
+        unfinished_sents = gen_len.clone().fill_(1)  # (batch_size,)
+        # Length of already generated sequences : 1 because of <BOS>
+        cur_len = 1
+
+        while cur_len < args.max_len:
+            state = generated[:, :cur_len] + 0  # (bs, cur_len)
+            tensor = model(
+                state.to(device), lengths=gen_len.to(device)
+            )  # (bs, cur_len, vocab_size)
+            # scores = tensor[:,0] # (bs, vocab_size) : use last word for prediction
+            scores = tensor.sum(dim=1)  # (bs, vocab_size)
+            scores[:, args.pad_index] = -1e8  # we don't want to generate pad_token
+            scores[
+                :, args.eos_index
+            ] = (
+                -1e8
+            )  # if we don't want to generate eos_token : don't allow generation of sentences with differents lengths
+            scores = scores.log_softmax(dim=1)
+            sample_temperature = 1
+            probs = F.softmax(
+                scores / sample_temperature, dim=1
+            )  # softmax of log softmax?
+            next_words = torch.multinomial(probs, 1).squeeze(1)
+
+            # update generations / lengths / finished sentences / current length
+            generated[
+                :, cur_len
+            ] = next_words.cpu() * unfinished_sents + args.pad_index * (
+                1 - unfinished_sents
+            )
+            gen_len.add_(
+                unfinished_sents
+            )  # add 1 to the length of the unfinished sentences
+            unfinished_sents.mul_(
+                next_words.cpu().ne(args.eos_index).long()
+            )  # as soon as we generate , set unfinished_sents to 0
+            cur_len = cur_len + 1
+
+            # stop when there is a  in each sentence, or if we exceed the maximul length
+            if unfinished_sents.max() == 0:
+                break
+
+        generated = generated.apply_(
+            lambda index: 5
+            if index == args.pad_index or index == args.eos_index
+            else index
+        )
+        # R = reward_function(generated, reward_coef, lambda_, beta).to(device)
+        generated = generated.tolist()
+        R = torch.tensor(
+            batch_reward(game, generated, is_sum_agent_rewards=True, only_last=True)
+        ).to(device)
+
+        samples.extend(generated)
+        samples_R.extend([r.item() for r in R.cpu()])
+    return samples, samples_R
 
 
 if __name__ == "__main__":

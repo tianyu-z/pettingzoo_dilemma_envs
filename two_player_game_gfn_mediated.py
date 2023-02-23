@@ -23,12 +23,9 @@ from games import (
 )
 from dilemma_pettingzoo import raw_env, env, parallel_env
 from agents.agent import Agent
-from agents.torch_transformer import Mediator
-from agents.utils import batchify_obs, batchify, unbatchify, AttrDict
+from agents.mediator import Mediator
+from agents.utils import batchify_obs, batchify, unbatchify
 from config import parse_args
-from easydict import EasyDict
-import yaml
-
 
 """ALGORITHM PARAMS"""
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -39,20 +36,8 @@ med_message_size = 2  # 2 bits
 #####################
 
 if __name__ == "__main__":
-
-    parser = parse_args(return_parser=True)
-    # Create the parser
-
-    # Load the yaml file into a dictionary
-    with open("configs/gfn.yaml", "r") as file:
-        m_config = yaml.load(file, Loader=yaml.FullLoader)
-
-    # Add the dictionary to the parser as default values
-    parser.add_argument("--mconfig", default=m_config, type=dict)
-    # Parse the arguments
-    args = parser.parse_args()
+    args = parse_args()
     print("Exp setting: ", args)
-
     if not args.local:
         import wandb
     end_step = args.max_cycles
@@ -76,6 +61,7 @@ if __name__ == "__main__":
 
     """ LEARNER SETUP """
     # separate policies and optimizers
+    # agent = Agent(num_actions=num_actions).to(device)
     agents = {
         agent: Agent(num_input=num_observations, num_actions=num_actions).to(device)
         for agent in env.agents
@@ -86,18 +72,9 @@ if __name__ == "__main__":
     }
 
     """ MEDIATOR SETUP"""
-    param_dict = args.mconfig["gfn"]
-    GFN_params = EasyDict(param_dict)
-    mediator = Mediator(params=GFN_params, fix_input_output=True).to(device)
-    logZ = torch.zeros((1,)).to(device)
-    logZ.requires_grad_()
+
+    mediator = Mediator(num_actions=num_actions * num_agents).to(device)
     mediator_optimizer = optim.Adam(mediator.parameters(), lr=args.lr, eps=args.eps)
-    mediator_optimizer = optim.Adam(
-        [
-            {"params": mediator.parameters(), "lr": GFN_params.train.lr},
-            {"params": [logZ], "lr": GFN_params.train.logzlr},
-        ]
-    )
 
     """ TRAINING STORAGE """
     all_obs = {}
@@ -190,10 +167,8 @@ if __name__ == "__main__":
     """ TRAINING LOGIC """
     # train for n number of episodes
     for episode in range(args.total_episodes):
-
         # collect an episode
         with torch.no_grad():
-
             # collect observations and convert to batch of torch tensors
             next_obs = env.reset()
             # reset the episodic return
@@ -201,22 +176,18 @@ if __name__ == "__main__":
             med_total_episodic_return = 0
 
             # each episode has num_steps
-            obs_ts_list = []
             for step in range(0, args.max_cycles):
                 # rollover the observation
                 obs = batchify_obs(next_obs, device)
-                obs_ts_list.append(obs[0].float())
-                obs_ts_tensor = torch.stack(obs_ts_list, dim=0).view(
-                    -1, 1, 1
-                )  # shape = (nb_step*nb_obs, 1, 1), 1 is the bs
+
                 # run the mediator
                 (
                     med_actions,
                     med_logprobs,
                     _,
-                    _,
-                ) = mediator(obs_ts_tensor)
-
+                    med_values,
+                ) = mediator.get_action_and_value(obs[0].float(), action=None)
+                med_actions = med_actions.to(device)
                 # run the agents
                 policy_outputs = {}
                 for idx, agent in enumerate(agents):
@@ -334,13 +305,11 @@ if __name__ == "__main__":
             np.random.shuffle(b_index)
             len_b_obs = len(b_obs)
             for start in range(0, len(b_obs), args.batch_size):
-
                 # select the indices we want to train on
                 end = start + args.batch_size
                 batch_index = b_index[start:end]
 
                 for idx, agent in enumerate(agents):
-
                     _, newlogprob, entropy, value = agents[agent].get_action_and_value(
                         b_obs[:, idx, :][batch_index],
                         b_actions[:, idx].long()[batch_index],
@@ -369,6 +338,7 @@ if __name__ == "__main__":
                     )
                     pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
+                    # Value loss
                     # Value loss
                     value = value.flatten()
                     v_loss_unclipped = (value - b_returns[:, idx][batch_index]) ** 2

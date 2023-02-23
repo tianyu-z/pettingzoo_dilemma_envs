@@ -6,3 +6,5 @@ __pycache__/games.cpython-310.pyc
 *.gif
 checkpoints/*
 *.pyc
+*.pt
+dev.py
