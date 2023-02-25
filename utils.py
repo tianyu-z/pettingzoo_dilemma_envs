@@ -511,5 +511,5 @@ if __name__ == "__main__":
     #     "loggings.pt"
     # )  # this is from the two_player_game.py, we save the evaluation results in this file
     plot_action_accumulative_frequency(
-        "agents_loggings/two_agent_simple_mediator_loggings_eval.pt", plot_bounds=False
+        "agents_loggings/two_agent_no_mediator_loggings_eval.pt", plot_bounds=False
     )
