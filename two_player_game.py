@@ -341,9 +341,10 @@ if __name__ == "__main__":
         for episode in range(5):
             obs = batchify_obs(env.reset(seed=None), device)
             # obs = obs
-            logging_actions = {a + "_actions": [] for a in agents}
-            logging_rewards = {a + "_rewards": [] for a in agents}
-            loggings = {**logging_actions, **logging_rewards}
+            if args.save_local_logging_pts:
+                logging_actions = {a + "_actions": [] for a in agents}
+                logging_rewards = {a + "_rewards": [] for a in agents}
+                loggings = {**logging_actions, **logging_rewards}
             for step in tqdm.trange(0, args.max_cycles):
                 actions = {}
                 for idx, agent in enumerate(agents):
@@ -356,9 +357,14 @@ if __name__ == "__main__":
                 obs, rewards, terms, _, _ = env.step(unbatchify(actions, env))
                 obs = batchify_obs(obs, device)
                 terms = [terms[a] for a in terms]
-                for idx, agent in enumerate(agents):
-                    loggings[agent + "_actions"].append(actions[idx].item())
-                    loggings[agent + "_rewards"].append(rewards["player_" + str(idx)])
-            all_loggings.append(loggings)
+                if args.save_local_logging_pts:
+                    for idx, agent in enumerate(agents):
+                        loggings[agent + "_actions"].append(actions[idx].item())
+                        loggings[agent + "_rewards"].append(
+                            rewards["player_" + str(idx)]
+                        )
+            if args.save_local_logging_pts:
+                all_loggings.append(loggings)
     env.close()
-    save_pt(all_loggings, "loggings.pt")
+    if args.save_local_logging_pts:
+        save_pt(all_loggings, "agents_loggings/two_agent_no_mediator_loggings_eval.pt")

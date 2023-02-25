@@ -380,7 +380,12 @@ def get_acc_freq(loaded, interested_action):
 
 
 def plot_action_accumulative_frequency(
-    loaded, plot_bounds=False, interested_action=None, beta=1.96, include_y_eq_x=False
+    loaded,
+    plot_bounds=False,
+    interested_action=None,
+    beta=1.96,
+    include_y_eq_x=False,
+    save_path=None,
 ):
     """Plot the accumulative frequency of actions
     Args:
@@ -390,20 +395,23 @@ def plot_action_accumulative_frequency(
         beta: the beta value for the upper and lower bounds (lower = mean - beta * std; upper = mean + beta * std),
              default to 1.96 for 95% confidence interval
     """
-    if plot_bounds:
-        tmp = []
-        for l in loaded:
-            tmp_acc_freqs, interested_actions = get_acc_freq(l, interested_action)
-            tmp.append(tmp_acc_freqs)
-        acc_freqs, acc_freqs_upper, acc_freqs_lower = compute_mean_std_dict(tmp, beta)
-    else:
-        acc_freqs, interested_actions = get_acc_freq(loaded, interested_action)
+    loaded_address = None
+    if isinstance(loaded, str):
+        loaded_address = loaded + "_plot_bounds_" + str(plot_bounds)
+        loaded = load_pt(loaded)
+    if not isinstance(loaded, list):
+        loaded = [loaded]
+    tmp = []
+    for l in loaded:
+        tmp_acc_freqs, interested_actions = get_acc_freq(l, interested_action)
+        tmp.append(tmp_acc_freqs)
+    acc_freqs, acc_freqs_upper, acc_freqs_lower = compute_mean_std_dict(tmp, beta)
     # Plot
     for i_a in interested_actions:
         plt.plot(list(range(len(acc_freqs[i_a]))), acc_freqs[i_a], label=i_a)
-        plt.plot(list(range(len(acc_freqs_lower[i_a]))), acc_freqs_lower[i_a])
-        plt.plot(list(range(len(acc_freqs_upper[i_a]))), acc_freqs_upper[i_a])
         if plot_bounds:
+            plt.plot(list(range(len(acc_freqs_lower[i_a]))), acc_freqs_lower[i_a])
+            plt.plot(list(range(len(acc_freqs_upper[i_a]))), acc_freqs_upper[i_a])
             plt.fill_between(
                 list(range(len(acc_freqs[i_a]))),
                 acc_freqs_lower[i_a],
@@ -421,6 +429,10 @@ def plot_action_accumulative_frequency(
     plt.xlabel("Time")
     plt.ylabel(f"accumulative frequency of action {interested_action}")
     plt.title("accumulative frequency")
+    if save_path is not None:
+        plt.savefig(save_path)
+    elif loaded_address is not None:
+        plt.savefig(loaded_address + ".png")
     plt.show()
     if plot_bounds:
         return acc_freqs, acc_freqs_lower, acc_freqs_upper
@@ -491,7 +503,9 @@ if __name__ == "__main__":
     # B = np.random.rand(10)
     # create_gif(A, B, title="test", filename="test.gif")
     # test plot accumulative graph
-    loaded = load_pt(
-        "loggings.pt"
-    )  # this is from the two_player_game.py, we save the evaluation results in this file
-    plot_action_accumulative_frequency(loaded, plot_bounds=True)
+    # loaded = load_pt(
+    #     "loggings.pt"
+    # )  # this is from the two_player_game.py, we save the evaluation results in this file
+    plot_action_accumulative_frequency(
+        "agents_loggings/two_agent_simple_mediator_loggings_eval.pt", plot_bounds=False
+    )

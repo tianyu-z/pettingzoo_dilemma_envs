@@ -81,6 +81,12 @@ def parse_args(return_parser=False):
         default=1e-5,
         help="Epsilon value for the optimizer",
     )
+    parser.add_argument(
+        "--save_local_logging_pts",
+        type=int,
+        default=1,
+        help="save local logging pts (both training and testing)",
+    )
     if return_parser:
         return parser
     else:

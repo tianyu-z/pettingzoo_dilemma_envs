@@ -26,6 +26,8 @@ from agents.agent import Agent
 from agents.mediator import Mediator
 from agents.utils import batchify_obs, batchify, unbatchify
 from config import parse_args
+from utils import save_pt
+import tqdm
 
 """ALGORITHM PARAMS"""
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -36,7 +38,6 @@ med_message_size = 2  # 2 bits
 #####################
 
 if __name__ == "__main__":
-
     args = parse_args()
     print("Exp setting: ", args)
     if not args.local:
@@ -168,10 +169,8 @@ if __name__ == "__main__":
     """ TRAINING LOGIC """
     # train for n number of episodes
     for episode in range(args.total_episodes):
-
         # collect an episode
         with torch.no_grad():
-
             # collect observations and convert to batch of torch tensors
             next_obs = env.reset()
             # reset the episodic return
@@ -180,7 +179,6 @@ if __name__ == "__main__":
 
             # each episode has num_steps
             for step in range(0, args.max_cycles):
-
                 # rollover the observation
                 obs = batchify_obs(next_obs, device)
 
@@ -309,13 +307,11 @@ if __name__ == "__main__":
             np.random.shuffle(b_index)
             len_b_obs = len(b_obs)
             for start in range(0, len(b_obs), args.batch_size):
-
                 # select the indices we want to train on
                 end = start + args.batch_size
                 batch_index = b_index[start:end]
 
                 for idx, agent in enumerate(agents):
-
                     _, newlogprob, entropy, value = agents[agent].get_action_and_value(
                         b_obs[:, idx, :][batch_index],
                         b_actions[:, idx].long()[batch_index],
@@ -488,21 +484,24 @@ if __name__ == "__main__":
         agents[agent].eval()
     mediator.eval()
 
+    all_loggings = []
     with torch.no_grad():
         # render 5 episodes out
         for episode in range(5):
             obs = batchify_obs(env.reset(seed=None), device)
-
             # run the mediator
-
-            for step in range(0, args.max_cycles):
+            if args.save_local_logging_pts:
+                logging_actions = {a + "_actions": [] for a in agents}
+                logging_rewards = {a + "_rewards": [] for a in agents}
+                loggings = {**logging_actions, **logging_rewards}
+            for step in tqdm.trange(0, args.max_cycles):
                 (
                     med_actions,
                     med_logprobs,
                     _,
                     med_values,
                 ) = mediator.get_action_and_value(obs[0].float(), action=None)
-
+                med_actions = med_actions.to(device)
                 actions = {}
                 for idx, agent in enumerate(agents):
                     agent_obs = obs[idx]
@@ -517,3 +516,16 @@ if __name__ == "__main__":
                 obs, rewards, terms, _, _ = env.step(unbatchify(actions, env))
                 obs = batchify_obs(obs, device)
                 terms = [terms[a] for a in terms]
+                if args.save_local_logging_pts:
+                    for idx, agent in enumerate(agents):
+                        loggings[agent + "_actions"].append(actions[idx].item())
+                        loggings[agent + "_rewards"].append(
+                            rewards["player_" + str(idx)]
+                        )
+            if args.save_local_logging_pts:
+                all_loggings.append(loggings)
+    env.close()
+    if args.save_local_logging_pts:
+        save_pt(
+            all_loggings, "agents_loggings/two_agent_simple_mediator_loggings_eval.pt"
+        )
