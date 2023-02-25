@@ -408,7 +408,11 @@ def plot_action_accumulative_frequency(
     acc_freqs, acc_freqs_upper, acc_freqs_lower = compute_mean_std_dict(tmp, beta)
     # Plot
     for i_a in interested_actions:
-        plt.plot(list(range(len(acc_freqs[i_a]))), acc_freqs[i_a], label=i_a)
+        plt.plot(
+            list(range(len(acc_freqs[i_a]))),
+            acc_freqs[i_a],
+            label=i_a + str(": ") + str(acc_freqs[i_a][-1]),
+        )
         if plot_bounds:
             plt.plot(list(range(len(acc_freqs_lower[i_a]))), acc_freqs_lower[i_a])
             plt.plot(list(range(len(acc_freqs_upper[i_a]))), acc_freqs_upper[i_a])
