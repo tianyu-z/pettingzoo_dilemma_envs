@@ -319,18 +319,30 @@ def visualize_evaluation(
     )
 
 
-def sample(args, model, device, game, num_samples):
+def sample(
+    args,
+    model,
+    device,
+    game,
+    num_batches,
+    batch_size=1,
+    start_from=None,
+):
     samples = []
     samples_R = []
-
-    for it in tqdm.trange(num_samples):
-        generated = torch.LongTensor(args.batch_size, args.max_len)  # upcoming output
+    if start_from is not None:
+        if batch_size != 1:
+            print("WARNING: batch_size is not 1, but start_from is not None.")
+        if start_from[0] != args.bos_index:
+            start_from = [str(args.bos_index)] + start_from
+    for it in tqdm.trange(num_batches):
+        generated = torch.LongTensor(batch_size, args.max_len)  # upcoming output
         generated.fill_(args.pad_index)  # fill upcoming ouput with <PAD>
         generated[:, 0].fill_(args.bos_index)  # <BOS> (start token), initial state
 
         # Length of already generated sequences : 1 because of <BOS>
         gen_len = torch.LongTensor(
-            args.batch_size,
+            batch_size,
         ).fill_(
             1
         )  # (batch_size,)
@@ -358,7 +370,12 @@ def sample(args, model, device, game, num_samples):
                 scores / sample_temperature, dim=1
             )  # softmax of log softmax?
             next_words = torch.multinomial(probs, 1).squeeze(1)
-
+            if start_from is not None and cur_len <= len(start_from) - 1:
+                if cur_len == 1 and it == 0:
+                    print(
+                        "WARNING: This way to force the start of the generation is not efficient and not even correct when the game is path dependent!"
+                    )
+                next_words = torch.tensor(int(start_from[cur_len]))
             # update generations / lengths / finished sentences / current length
             generated[
                 :, cur_len

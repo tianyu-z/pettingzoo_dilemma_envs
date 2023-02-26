@@ -35,16 +35,16 @@ def map_binary_to_integer(binary):
 
 
 class Mediator(nn.Module):
-    def __init__(self, num_actions=4, num_input=2, num_hidden=512):
+    def __init__(
+        self, num_actions=4, num_input=2, num_hidden=512, num_additional_info=0
+    ):
         super().__init__()
 
         self.network = nn.Sequential(
-            self._layer_init(nn.Linear(num_input, num_hidden)),
+            self._layer_init(nn.Linear(num_input + num_additional_info, num_hidden)),
             nn.ReLU(),
         )
-        self.actor = self._layer_init(
-            nn.Linear(num_hidden, num_actions), std=0.01
-        )
+        self.actor = self._layer_init(nn.Linear(num_hidden, num_actions), std=0.01)
         self.critic = self._layer_init(nn.Linear(num_hidden, 1))
 
     def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
