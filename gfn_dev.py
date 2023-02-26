@@ -14,7 +14,8 @@ from games import (
     Stag_Hunt,
     Chicken,
 )
-
+import pygtrie
+import random
 from utils import (
     create_gif,
     create_gif_by_dicts,
@@ -319,7 +320,7 @@ def visualize_evaluation(
     )
 
 
-def sample(
+def sample_(
     args,
     model,
     device,
@@ -408,6 +409,120 @@ def sample(
         samples.extend(generated)
         samples_R.extend([r.item() for r in R.cpu()])
     return samples, samples_R
+
+
+def sample(
+    args,
+    model,
+    device,
+    game,
+    num_batches,
+    batch_size=1,
+    return_prefix_tree=False,
+    start_from=None,
+    condition_sample_size=None,
+):
+    samples = []
+    samples_R = []
+    if start_from[0] != args.bos_index:
+        start_from = [str(args.bos_index)] + start_from
+    for it in tqdm.trange(num_batches):
+        generated = torch.LongTensor(batch_size, args.max_len)  # upcoming output
+        generated.fill_(args.pad_index)  # fill upcoming ouput with <PAD>
+        generated[:, 0].fill_(args.bos_index)  # <BOS> (start token), initial state
+
+        # Length of already generated sequences : 1 because of <BOS>
+        gen_len = torch.LongTensor(
+            batch_size,
+        ).fill_(
+            1
+        )  # (batch_size,)
+        # 1 (True) if the generation of the sequence is not yet finished, 0 (False) otherwise
+        unfinished_sents = gen_len.clone().fill_(1)  # (batch_size,)
+        # Length of already generated sequences : 1 because of <BOS>
+        cur_len = 1
+
+        while cur_len < args.max_len:
+            state = generated[:, :cur_len] + 0  # (bs, cur_len)
+            tensor = model(
+                state.to(device), lengths=gen_len.to(device)
+            )  # (bs, cur_len, vocab_size)
+            # scores = tensor[:,0] # (bs, vocab_size) : use last word for prediction
+            scores = tensor.sum(dim=1)  # (bs, vocab_size)
+            scores[:, args.pad_index] = -1e8  # we don't want to generate pad_token
+            scores[
+                :, args.eos_index
+            ] = (
+                -1e8
+            )  # if we don't want to generate eos_token : don't allow generation of sentences with differents lengths
+            scores = scores.log_softmax(dim=1)
+            sample_temperature = 1
+            probs = F.softmax(
+                scores / sample_temperature, dim=1
+            )  # softmax of log softmax?
+            next_words = torch.multinomial(probs, 1).squeeze(1)
+            # update generations / lengths / finished sentences / current length
+            generated[
+                :, cur_len
+            ] = next_words.cpu() * unfinished_sents + args.pad_index * (
+                1 - unfinished_sents
+            )
+            gen_len.add_(
+                unfinished_sents
+            )  # add 1 to the length of the unfinished sentences
+            unfinished_sents.mul_(
+                next_words.cpu().ne(args.eos_index).long()
+            )  # as soon as we generate , set unfinished_sents to 0
+            cur_len = cur_len + 1
+
+            # stop when there is a  in each sentence, or if we exceed the maximul length
+            if unfinished_sents.max() == 0:
+                break
+
+        generated = generated.apply_(
+            lambda index: 5
+            if index == args.pad_index or index == args.eos_index
+            else index
+        )
+        # R = reward_function(generated, reward_coef, lambda_, beta).to(device)
+        generated = generated.tolist()
+        R = torch.tensor(
+            batch_reward(game, generated, is_sum_agent_rewards=True, only_last=True)
+        ).to(device)
+
+        samples.extend(generated)
+        samples_R.extend([r.item() for r in R.cpu()])
+    if not return_prefix_tree and start_from is None:
+        return samples, samples_R, None, None
+    else:
+        tree = pygtrie.CharTrie()
+        for i, x in enumerate(samples):
+            key = "".join([str(i) for i in x])  # change [1,2,3] to "123"
+            tree[key] = samples_R[i]
+        if start_from is not None:
+            subsamples = []
+            subsamples_R = []
+            sub_samples = condition_sample(
+                tree, start_from, condition_sample_size=condition_sample_size
+            )
+            for x in sub_samples:
+                tmp_ = [int(i) for i in x[0]]
+                subsamples.append(tmp_)
+                subsamples_R.append(x[1])
+            return subsamples, subsamples_R, tree
+        return samples, samples_R, tree
+
+
+def condition_sample(prefix_tree, prefix=None, condition_sample_size=1000):
+    if isinstance(prefix, list):
+        prefix = "".join(prefix)
+    items = list(prefix_tree.iteritems(prefix=prefix))
+    if condition_sample_size < len(items):
+        sub_samples = random.sample(items, condition_sample_size)
+    else:
+        # sub_samples = items
+        sub_samples = random.choices(items, k=condition_sample_size)
+    return sub_samples
 
 
 if __name__ == "__main__":

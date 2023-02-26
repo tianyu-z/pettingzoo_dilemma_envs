@@ -76,11 +76,6 @@ if __name__ == "__main__":
 
     """ GFN SAMPLPER SETUP """
     GFN_sample_len = 7
-
-    load_and_sample(
-        "/home/tiany/pettingzoo_dilemma_envs/checkpoints/63ecf3d0/checkpoints_1400.pt",
-        num_samples=100,
-    )[-1]
     """ MEDIATOR SETUP"""
 
     mediator = Mediator(
@@ -189,6 +184,11 @@ if __name__ == "__main__":
 
             # each episode has num_steps
             for step in range(0, args.max_cycles):
+                # run GFN_sampler
+                load_and_sample(
+                    "/home/tiany/pettingzoo_dilemma_envs/checkpoints/63ecf3d0/checkpoints_1400.pt",
+                    num_samples=100,
+                )[-1]
                 # rollover the observation
                 obs = batchify_obs(next_obs, device)
 

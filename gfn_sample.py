@@ -16,8 +16,15 @@ def load_and_sample(filename, num_batches, batch_size=1, no_bos=True, start_from
     # Load the model
     checkpoint_dict = load_pt(filename)
     model.load_state_dict(checkpoint_dict["GFN_model_state_dict"])
-    samples, samples_R = sample(
-        args, model, device, game, num_batches, batch_size, start_from
+    samples, samples_R, _ = sample(
+        args,
+        model,
+        device,
+        game,
+        num_batches,
+        batch_size=batch_size,
+        start_from=start_from,
+        condition_sample_size=128,
     )
     if no_bos:
         if samples[0][0] == 5:
@@ -30,6 +37,7 @@ if __name__ == "__main__":
         load_and_sample(
             "/home/tiany/pettingzoo_dilemma_envs/checkpoints/63ecf3d0/checkpoints_1400.pt",
             num_batches=100,
+            batch_size=1024,
             start_from=["1", "2", "3"],
         )[0]
     )
