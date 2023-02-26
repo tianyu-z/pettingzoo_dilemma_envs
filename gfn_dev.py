@@ -329,6 +329,12 @@ def sample_(
     batch_size=1,
     start_from=None,
 ):
+    """
+    This function is intend to do condition sampling from the model.
+    However, it is correct only when the game is not path-dependent.
+    because we overwrite the first serval char of the sentence with the start_from by force.
+    Thus, the condition is not correct when the game is path-dependent.
+    """
     samples = []
     samples_R = []
     if start_from is not None:
@@ -422,6 +428,21 @@ def sample(
     start_from=None,
     condition_sample_size=None,
 ):
+    """
+    Samples from the model.
+    :param args: arguments
+    :param model: model
+    :param device: device
+    :param game: game
+    :param num_batches: number of batches
+    :param batch_size: batch size
+    :param return_prefix_tree: whether to return the prefix tree
+    :param start_from: start from a given prefix
+    :param condition_sample_size: condition sample size
+    :return: samples, samples_R, prefix_tree
+    In this method, we only take the samples with the given start_from prefix in the non-conditional samples,
+    thus the conditional distribution of the sampling is correct.
+    """
     samples = []
     samples_R = []
     if start_from[0] != args.bos_index:
@@ -514,6 +535,16 @@ def sample(
 
 
 def condition_sample(prefix_tree, prefix=None, condition_sample_size=1000):
+    """sample from prefix tree with condition prefix
+    Args:
+        prefix_tree: pygtrie.CharTrie
+        prefix: list of int
+        condition_sample_size: int
+        Returns:
+            sub_samples: list of (key, value)
+        This function is intended to do the conditional sampling based on the prefix tree.
+        It is an aux function for the sample function.
+    """
     if isinstance(prefix, list):
         prefix = "".join(prefix)
     items = list(prefix_tree.iteritems(prefix=prefix))
