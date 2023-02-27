@@ -44,4 +44,5 @@ class Agent(nn.Module):
             probs.log_prob(action),
             probs.entropy(),
             self.critic(hidden),
+            logits,
         )

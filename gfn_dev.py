@@ -445,9 +445,11 @@ def sample(
     """
     samples = []
     samples_R = []
-    if start_from[0] != args.bos_index:
+    if start_from == []:
+        start_from = None
+    if start_from is not None and start_from[0] != args.bos_index:
         start_from = [str(args.bos_index)] + start_from
-    for it in tqdm.trange(num_batches):
+    for it in range(num_batches):
         generated = torch.LongTensor(batch_size, args.max_len)  # upcoming output
         generated.fill_(args.pad_index)  # fill upcoming ouput with <PAD>
         generated[:, 0].fill_(args.bos_index)  # <BOS> (start token), initial state
@@ -514,7 +516,7 @@ def sample(
         samples.extend(generated)
         samples_R.extend([r.item() for r in R.cpu()])
     if not return_prefix_tree and start_from is None:
-        return samples, samples_R, None, None
+        return samples, samples_R, None
     else:
         tree = pygtrie.CharTrie()
         for i, x in enumerate(samples):
@@ -527,7 +529,9 @@ def sample(
                 tree, start_from, condition_sample_size=condition_sample_size
             )
             for x in sub_samples:
-                tmp_ = [int(i) for i in x[0]]
+                tmp_ = list(x[0])  # change "123" to ["1","2","3"]
+                tmp_ = [int(i) for i in tmp_]  # change ["1","2","3"] to [1,2,3]
+                # change [("123", 5)] to [1,2,3]
                 subsamples.append(tmp_)
                 subsamples_R.append(x[1])
             return subsamples, subsamples_R, tree
@@ -546,8 +550,14 @@ def condition_sample(prefix_tree, prefix=None, condition_sample_size=1000):
         It is an aux function for the sample function.
     """
     if isinstance(prefix, list):
+        for i in range(len(prefix)):
+            if isinstance(prefix[i], int):
+                prefix[i] = str(prefix[i])
         prefix = "".join(prefix)
-    items = list(prefix_tree.iteritems(prefix=prefix))
+    try:
+        items = list(prefix_tree.iteritems(prefix=prefix))
+    except KeyError:
+        items = list(prefix_tree.iteritems(prefix=""))
     if condition_sample_size < len(items):
         sub_samples = random.sample(items, condition_sample_size)
     else:

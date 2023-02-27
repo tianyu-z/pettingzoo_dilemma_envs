@@ -26,7 +26,7 @@ from agents.agent import Agent
 from agents.mediator import Mediator
 from agents.utils import batchify_obs, batchify, unbatchify
 from config import parse_args
-from utils import save_pt
+from utils import save_pt, LimitedStack, tokenize_actions
 import tqdm
 from gfn_sample import load_and_sample
 
@@ -34,7 +34,7 @@ from gfn_sample import load_and_sample
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
-med_message_size = 2  # 8 bits
+med_message_size = 4  # 8 bits
 
 #####################
 
@@ -46,6 +46,7 @@ if __name__ == "__main__":
     end_step = args.max_cycles
 
     """ENV SETUP"""
+    actionspair2int, _, _, _, _ = tokenize_actions()
     env = parallel_env(render_mode=None, max_cycles=args.max_cycles)
     # parallel_api_test(env, num_cycles=1000)
     obs = env.reset()
@@ -60,7 +61,7 @@ if __name__ == "__main__":
     num_agents = len(env.possible_agents)
     num_actions = env.action_space(env.possible_agents[0]).n
     # observation_size = env.observation_space(env.possible_agents[0]).shape
-    num_observations = 2 + med_message_size
+    num_observations = 2 + med_message_size  # 2 = Coop and defect
 
     """ LEARNER SETUP """
     # separate policies and optimizers
@@ -75,12 +76,13 @@ if __name__ == "__main__":
     }
 
     """ GFN SAMPLPER SETUP """
-    GFN_sample_len = 7
+    GFN_sample_len_without_bos = 6
     """ MEDIATOR SETUP"""
-
     mediator = Mediator(
-        num_actions=num_actions * num_agents, num_additional_info=GFN_sample_len + 1
+        num_actions=med_message_size,
+        num_additional_info=GFN_sample_len_without_bos + 1,
     ).to(device)
+
     mediator_optimizer = optim.Adam(mediator.parameters(), lr=args.lr, eps=args.eps)
 
     """ TRAINING STORAGE """
@@ -173,7 +175,7 @@ if __name__ == "__main__":
 
     """ TRAINING LOGIC """
     # train for n number of episodes
-    for episode in range(args.total_episodes):
+    for episode in tqdm.trange(args.total_episodes):
         # collect an episode
         with torch.no_grad():
             # collect observations and convert to batch of torch tensors
@@ -182,45 +184,64 @@ if __name__ == "__main__":
             total_episodic_return = np.zeros(num_agents)
             med_total_episodic_return = 0
 
+            # init a stack for history recording
+            history = LimitedStack(args.max_history)
             # each episode has num_steps
             for step in range(0, args.max_cycles):
                 # run GFN_sampler
-                load_and_sample(
+                history_ = history.lst
+                _, _, sample_and_reward = load_and_sample(
                     "/home/tiany/pettingzoo_dilemma_envs/checkpoints/63ecf3d0/checkpoints_1400.pt",
-                    num_samples=100,
-                )[-1]
+                    num_batches=1,
+                    batch_size=8192,
+                    start_from=history_,
+                )  # get the samples and the reward
+                input_sample = sample_and_reward[0]
                 # rollover the observation
                 obs = batchify_obs(next_obs, device)
-
+                obs_togo = torch.cat(
+                    (obs[0], torch.tensor(input_sample).to(device)), dim=0
+                )
                 # run the mediator
                 (
                     med_actions,
                     med_logprobs,
                     _,
                     med_values,
-                ) = mediator.get_action_and_value(obs[0].float(), action=None)
+                    med_logits,
+                ) = mediator.get_action_and_value(obs_togo.float(), action=None)
                 med_actions = med_actions.to(device)
                 # run the agents
                 policy_outputs = {}
                 for idx, agent in enumerate(agents):
                     agent_obs = obs[idx]
                     # add the mediator action to the observation
-                    agent_obs = torch.cat((agent_obs, med_actions.squeeze()), dim=0)
+                    agent_obs = torch.cat((agent_obs, med_logits.squeeze()), dim=0)
                     agent_obs = agent_obs.float()  # hotpatch
-                    agent_actions, agent_logprobs, _, agent_values = agents[
-                        agent
-                    ].get_action_and_value(agent_obs, action=None)
+                    (
+                        agent_actions,
+                        agent_logprobs,
+                        _,
+                        agent_values,
+                        agent_logits,
+                    ) = agents[agent].get_action_and_value(agent_obs, action=None)
                     policy_outputs[agent] = {
                         "actions": agent_actions,
                         "logprobs": agent_logprobs,
                         "_": _,
                         "values": agent_values,
+                        "agent_logits": agent_logits,
                     }
 
                 # join separate tensors from each agent
+                agent_logits = torch.stack(
+                    [policy_outputs[agent]["agent_logits"] for agent in agents]
+                )
                 actions = torch.cat(
                     [policy_outputs[agent]["actions"].view(1) for agent in agents]
                 )
+                onedigit_actions = actionspair2int[tuple(actions.cpu().numpy())]
+                history.push(onedigit_actions)
                 logprobs = torch.cat(
                     [policy_outputs[agent]["logprobs"].view(1) for agent in agents]
                 )
@@ -235,7 +256,10 @@ if __name__ == "__main__":
                 # add to episode storage
                 # concatenate obs with mediator action and add to rb_obs
                 # stack mediator action twice to match agent action shape
-                med_actions = torch.stack((med_actions, med_actions))
+
+                # TODO
+                med_actions = torch.stack((med_logits, med_logits))
+
                 rb_obs[step] = torch.cat((obs, med_actions), dim=1)
                 rb_rewards[step] = batchify(rewards, device)
                 rb_terms[step] = batchify(terms, device)
@@ -245,7 +269,7 @@ if __name__ == "__main__":
 
                 med_rb_obs[step] = obs
                 med_rb_rewards[step] = torch.mean(rb_rewards[step])
-                med_rb_actions[step] = med_actions
+                med_rb_actions[step] = agent_logits
                 med_rb_logprobs[step] = med_logprobs
                 med_rb_values[step] = med_values
 

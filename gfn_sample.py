@@ -11,6 +11,18 @@ from gfn_config import get_merged_args
 
 
 def load_and_sample(filename, num_batches, batch_size=1, no_bos=True, start_from=None):
+    """Load a model and sample from it.
+    Args:
+        filename (str): Path to the model file.
+        num_batches (int): Number of batches to sample.
+        batch_size (int): Batch size.
+        no_bos (bool): Whether to remove the beginning of sentence token.
+        start_from (list): List of strings to start from.
+    Returns:
+        samples (list): List of samples.
+        samples_R (list): List of rewards.
+        samples_and_Reward (list): List of samples with rewards.
+    """
     args, game, logZ, model, optim, device = init()
 
     # Load the model

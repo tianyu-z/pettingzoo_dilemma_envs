@@ -501,6 +501,43 @@ def get_error_bounds(loaded, beta=1.96):
     return mean_ts, upper_error_bounds, lower_error_bounds
 
 
+class LimitedStack:
+    """
+    e.g.
+    s = Stack()
+    s.push(1)
+    s.push(2)
+    s.push(3)
+    print(s.pop())  # Output: 3
+    print(s.peek())  # Output: 2
+    print(s.is_empty())  # Output: False
+
+    Description:
+    when the max_len is negative, it is unlimited
+    """
+
+    def __init__(self, max_len):
+        self.lst = []
+        self.max_len = max_len
+
+    def push(self, item):
+        self.lst.append(item)
+        if self.max_len < 0:
+            return
+        elif len(self.lst) > self.max_len:
+            self.lst.pop(0)
+            return
+
+    def pop(self):
+        return self.lst.pop()
+
+    def is_empty(self):
+        return len(self.lst) == 0
+
+    def __len__(self):
+        return len(self.lst)
+
+
 if __name__ == "__main__":
     # test create gif
     # A = np.random.rand(100, 10)

@@ -68,6 +68,7 @@ class Mediator(nn.Module):
                 probs.log_prob(action),
                 probs.entropy(),
                 self.critic(hidden),
+                logits,
             )
         else:
             decimal_actions = map_binary_to_integer(action)
@@ -76,4 +77,5 @@ class Mediator(nn.Module):
                 probs.log_prob(decimal_actions),
                 probs.entropy(),
                 self.critic(hidden),
+                logits,
             )
