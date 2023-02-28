@@ -10,13 +10,12 @@ from games import (
 from gfn_config import get_merged_args
 
 
-def load_and_sample(filename, num_batches, batch_size=1, no_bos=True, start_from=None):
+def load_and_sample(filename, num_batches, batch_size=1, start_from=None):
     """Load a model and sample from it.
     Args:
         filename (str): Path to the model file.
         num_batches (int): Number of batches to sample.
         batch_size (int): Batch size.
-        no_bos (bool): Whether to remove the beginning of sentence token.
         start_from (list): List of strings to start from.
     Returns:
         samples (list): List of samples.
@@ -28,7 +27,7 @@ def load_and_sample(filename, num_batches, batch_size=1, no_bos=True, start_from
     # Load the model
     checkpoint_dict = load_pt(filename)
     model.load_state_dict(checkpoint_dict["GFN_model_state_dict"])
-    samples, samples_R, _ = sample(
+    samples, samples_R, samples_and_reward, _ = sample(
         args,
         model,
         device,
@@ -38,10 +37,7 @@ def load_and_sample(filename, num_batches, batch_size=1, no_bos=True, start_from
         start_from=start_from,
         condition_sample_size=128,
     )
-    if no_bos:
-        if samples[0][0] == 5:
-            samples = [x[1:] for x in samples]
-    return samples, samples_R, [x + [y] for x, y in zip(samples, samples_R)]
+    return samples, samples_R, samples_and_reward
 
 
 if __name__ == "__main__":

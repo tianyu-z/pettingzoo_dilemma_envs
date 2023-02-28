@@ -445,6 +445,7 @@ def sample(
     """
     samples = []
     samples_R = []
+    samples_and_reward = []
     if start_from == []:
         start_from = None
     if start_from is not None and start_from[0] != args.bos_index:
@@ -514,9 +515,13 @@ def sample(
         ).to(device)
 
         samples.extend(generated)
-        samples_R.extend([r.item() for r in R.cpu()])
+        sample_r = [r.item() for r in R.cpu()]
+        samples_R.extend(sample_r)
+        samples_and_reward = []
+        for i, x in enumerate(generated):
+            samples_and_reward.extend([x + [sample_r[i]]])
     if not return_prefix_tree and start_from is None:
-        return samples, samples_R, None
+        return samples, samples_R, samples_and_reward, None
     else:
         tree = pygtrie.CharTrie()
         for i, x in enumerate(samples):
@@ -525,6 +530,7 @@ def sample(
         if start_from is not None:
             subsamples = []
             subsamples_R = []
+            subsamples_and_reward = []
             sub_samples = condition_sample(
                 tree, start_from, condition_sample_size=condition_sample_size
             )
@@ -534,8 +540,9 @@ def sample(
                 # change [("123", 5)] to [1,2,3]
                 subsamples.append(tmp_)
                 subsamples_R.append(x[1])
-            return subsamples, subsamples_R, tree
-        return samples, samples_R, tree
+                subsamples_and_reward.append(tmp_ + [x[1]])
+            return subsamples, subsamples_R, subsamples_and_reward, tree
+        return samples, samples_R, samples_and_reward, tree
 
 
 def condition_sample(prefix_tree, prefix=None, condition_sample_size=1000):

@@ -26,9 +26,9 @@ from agents.agent import Agent
 from agents.mediator import Mediator
 from agents.utils import batchify_obs, batchify, unbatchify
 from config import parse_args
-from utils import save_pt, LimitedStack, tokenize_actions
+from utils import save_pt, LimitedStack, tokenize_actions, load_pt
 import tqdm
-from gfn_sample import load_and_sample
+from gfn_dev import init, sample
 
 """ALGORITHM PARAMS"""
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -173,9 +173,18 @@ if __name__ == "__main__":
         device
     )  # stores values predicted by the value function for each state and each agent
 
+    """
+    gfn_model_loading
+    """
+    args_gfn, game, logZ, model, optim, device = init()
+    checkpoint_dict = load_pt(
+        "/home/tiany/pettingzoo_dilemma_envs/checkpoints/63ecf3d0/checkpoints_1400.pt"
+    )
+    model.load_state_dict(checkpoint_dict["GFN_model_state_dict"])
+
     """ TRAINING LOGIC """
     # train for n number of episodes
-    for episode in tqdm.trange(args.total_episodes):
+    for episode in range(args.total_episodes):
         # collect an episode
         with torch.no_grad():
             # collect observations and convert to batch of torch tensors
@@ -187,16 +196,26 @@ if __name__ == "__main__":
             # init a stack for history recording
             history = LimitedStack(args.max_history)
             # each episode has num_steps
-            for step in range(0, args.max_cycles):
+            for step in tqdm.trange(0, args.max_cycles):
                 # run GFN_sampler
                 history_ = history.lst
-                _, _, sample_and_reward = load_and_sample(
-                    "/home/tiany/pettingzoo_dilemma_envs/checkpoints/63ecf3d0/checkpoints_1400.pt",
+                # _, _, sample_and_reward = load_and_sample(
+                #     ,
+                #     num_batches=1,
+                #     batch_size=8192,
+                #     start_from=history_,
+                # )  # get the samples and the reward
+                samples, samples_R, samples_and_reward, _ = sample(
+                    args_gfn,
+                    model,
+                    device,
+                    game,
                     num_batches=1,
                     batch_size=8192,
                     start_from=history_,
-                )  # get the samples and the reward
-                input_sample = sample_and_reward[0]
+                    condition_sample_size=1,
+                )
+                input_sample = samples_and_reward[0][1:]  # [1:] is to remove the bos
                 # rollover the observation
                 obs = batchify_obs(next_obs, device)
                 obs_togo = torch.cat(
