@@ -13,3 +13,9 @@ python coin_game_pettingzoo.py
 # IPD as an example
 python gfn_dev.py
 ```
+## How to sample using GFN?
+Replace "checkpoints/63f794eb/checkpoints_1400.pt" with the correct file path, then run
+```python
+# IPD as an example
+python gfn_sample.py
+```
