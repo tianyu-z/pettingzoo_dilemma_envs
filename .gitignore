@@ -9,3 +9,4 @@ checkpoints/*
 *.pt
 dev.py
 ppo_cartpole.zip
+*.pth

@@ -1,21 +1,22 @@
-import gym
+from stable_baselines3 import DQN, PPO
+from stable_baselines3.common.env_checker import check_env
+from dilemma_pettingzoo import env, parallel_env
+from pettingzoo.test import parallel_api_test
 
-from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env
 
-# Parallel environments
-env = make_vec_env("CartPole-v1", n_envs=4)
+if __name__ == "__main__":
+    # Testing the parallel algorithm alone
+    env_parallel = parallel_env()
+    parallel_api_test(env_parallel)  # This works!
 
-model = PPO("MlpPolicy", env, verbose=1)
-model.learn(total_timesteps=25000)
-model.save("ppo_cartpole")
+    # Testing the environment with the wrapper
+    env = env()
 
-del model  # remove to demonstrate saving and loading
+    # ERROR: AssertionError: The observation returned by the `reset()` method does not match the given observation space
+    check_env(env)
 
-model = PPO.load("ppo_cartpole")
+    # Model initialization
+    model = PPO("MlpPolicy", env, verbose=1)
 
-obs = env.reset()
-while True:
-    action, _states = model.predict(obs)
-    obs, rewards, dones, info = env.step(action)
-    # env.render()
+    # ERROR: ValueError: could not broadcast input array from shape (20,20) into shape (20,)
+    model.learn(total_timesteps=10_000)
