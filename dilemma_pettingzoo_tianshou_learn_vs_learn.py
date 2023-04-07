@@ -15,9 +15,10 @@ import dilemma_pettingzoo
 
 
 def _get_agents(
-    agent_learn: Optional[BasePolicy] = None,
-    agent_opponent: Optional[BasePolicy] = None,
-    optim: Optional[torch.optim.Optimizer] = None,
+    agent_learn1: Optional[BasePolicy] = None,
+    agent_learn2: Optional[BasePolicy] = None,
+    optim_1: Optional[torch.optim.Optimizer] = None,
+    optim_2: Optional[torch.optim.Optimizer] = None,
 ) -> Tuple[BasePolicy, torch.optim.Optimizer, list]:
     env = _get_env()
     observation_space = (
@@ -25,7 +26,7 @@ def _get_agents(
         if isinstance(env.observation_space, gym.spaces.Dict)
         else env.observation_space
     )
-    if agent_learn is None:
+    if agent_learn1 is None:
         # model
         state_shape = (
             observation_space["observation"].shape or observation_space["observation"].n
@@ -33,28 +34,49 @@ def _get_agents(
         action_shape = env.action_space.shape or env.action_space.n
         print("state_shape", state_shape)
         print("action_shape", action_shape)
-        net = Net(
+        net_1 = Net(
             state_shape=state_shape,
             action_shape=action_shape,
             hidden_sizes=[128, 128, 128, 128],
             device="cuda" if torch.cuda.is_available() else "cpu",
         ).to("cuda" if torch.cuda.is_available() else "cpu")
-        if optim is None:
-            optim = torch.optim.Adam(net.parameters(), lr=1e-4)
-        agent_learn = DQNPolicy(
-            model=net,
-            optim=optim,
+        if optim_1 is None:
+            optim_1 = torch.optim.Adam(net_1.parameters(), lr=1e-4)
+        agent_learn1 = DQNPolicy(
+            model=net_1,
+            optim=optim_1,
             discount_factor=0.9,
             estimation_step=3,
             target_update_freq=320,
         )
 
-    if agent_opponent is None:
-        agent_opponent = RandomPolicy()
+    if agent_learn2 is None:
+        state_shape = (
+            observation_space["observation"].shape or observation_space["observation"].n
+        )
+        action_shape = env.action_space.shape or env.action_space.n
+        print("state_shape", state_shape)
+        print("action_shape", action_shape)
+        net_2 = Net(
+            state_shape=state_shape,
+            action_shape=action_shape,
+            hidden_sizes=[128, 128, 128, 128],
+            device="cuda" if torch.cuda.is_available() else "cpu",
+        ).to("cuda" if torch.cuda.is_available() else "cpu")
+        if optim_2 is None:
+            optim_2 = torch.optim.Adam(net_2.parameters(), lr=1e-4)
+        agent_learn2 = DQNPolicy(
+            model=net_2,
+            optim=optim_2,
+            discount_factor=0.9,
+            estimation_step=3,
+            target_update_freq=320,
+        )
 
-    agents = [agent_opponent, agent_learn]
+    agents = [agent_learn1, agent_learn2]
+    optims = [optim_1, optim_2]
     policy = MultiAgentPolicyManager(agents, env)
-    return policy, optim, env.agents
+    return policy, optims, env.agents
 
 
 def _get_env():
@@ -84,6 +106,7 @@ if __name__ == "__main__":
         VectorReplayBuffer(20_000, len(train_envs)),
         exploration_noise=True,
     )
+
     test_collector = Collector(policy, test_envs, exploration_noise=True)
     # policy.set_eps(1)
     train_collector.collect(n_step=64 * 10)  # batch size * training_num
@@ -94,8 +117,9 @@ if __name__ == "__main__":
         os.makedirs(os.path.join("log", "rps", "dqn"), exist_ok=True)
         torch.save(policy.policies[agents[1]].state_dict(), model_save_path)
 
-    def stop_fn(mean_rewards):
-        return mean_rewards >= 0.6
+    # def stop_fn(mean_rewards):
+    #     return mean_rewards >= 0.6
+    stop_fn = None
 
     def train_fn(epoch, env_step):
         policy.policies[agents[1]].set_eps(0.1)
@@ -112,7 +136,7 @@ if __name__ == "__main__":
         train_collector=train_collector,
         test_collector=test_collector,
         max_epoch=10,
-        step_per_epoch=100,
+        step_per_epoch=1000,
         step_per_collect=50,
         episode_per_test=10,
         batch_size=64,

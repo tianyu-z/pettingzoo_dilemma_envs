@@ -1,5 +1,3 @@
-# reference: https://github.com/Farama-Foundation/PettingZoo/blob/master/tutorials/Tianshou/2_training_agents.py
-
 import os
 from typing import Optional, Tuple
 
@@ -13,9 +11,7 @@ from tianshou.policy import BasePolicy, DQNPolicy, MultiAgentPolicyManager, Rand
 from tianshou.trainer import offpolicy_trainer
 from tianshou.utils.net.common import Net
 
-from pettingzoo.classic import tictactoe_v3
-
-# import pettingzoo.butterfly.pistonball_v6 as pistonball_v6
+import dilemma_pettingzoo
 
 
 def _get_agents(
@@ -31,8 +27,6 @@ def _get_agents(
     )
     if agent_learn is None:
         # model
-        # state_shape = observation_space.shape
-
         state_shape = (
             observation_space["observation"].shape or observation_space["observation"].n
         )
@@ -54,10 +48,7 @@ def _get_agents(
             estimation_step=3,
             target_update_freq=320,
         )
-        # DQNPolicy logic:
-        # line 278 in collect.py (result = self.policy(self.data, last_state))
-        # -> line 160 dqn.py logits, hidden = model(obs_next, state=state, info=batch.info)
-        # -> line 262 in common.py (logits = self.model(obs))
+
     if agent_opponent is None:
         agent_opponent = RandomPolicy()
 
@@ -68,8 +59,7 @@ def _get_agents(
 
 def _get_env():
     """This function is needed to provide callables for DummyVectorEnv."""
-    return PettingZooEnv(tictactoe_v3.env())
-    # return PettingZooEnv(pistonball_v6.env(n_pistons=2))
+    return PettingZooEnv(dilemma_pettingzoo.env(max_cycles=10000))
 
 
 if __name__ == "__main__":
@@ -104,8 +94,9 @@ if __name__ == "__main__":
         os.makedirs(os.path.join("log", "rps", "dqn"), exist_ok=True)
         torch.save(policy.policies[agents[1]].state_dict(), model_save_path)
 
-    def stop_fn(mean_rewards):
-        return mean_rewards >= 0.6
+    # def stop_fn(mean_rewards):
+    #     return mean_rewards >= 0.6
+    stop_fn = None
 
     def train_fn(epoch, env_step):
         policy.policies[agents[1]].set_eps(0.1)
@@ -121,7 +112,7 @@ if __name__ == "__main__":
         policy=policy,
         train_collector=train_collector,
         test_collector=test_collector,
-        max_epoch=100,
+        max_epoch=10,
         step_per_epoch=1000,
         step_per_collect=50,
         episode_per_test=10,
