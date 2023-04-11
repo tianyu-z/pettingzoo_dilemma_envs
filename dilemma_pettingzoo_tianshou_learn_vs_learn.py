@@ -105,9 +105,12 @@ if __name__ == "__main__":
         train_envs,
         VectorReplayBuffer(20_000, len(train_envs)),
         exploration_noise=True,
+        reward_update="last_update",
     )
 
-    test_collector = Collector(policy, test_envs, exploration_noise=True)
+    test_collector = Collector(
+        policy, test_envs, exploration_noise=True, reward_update="last_update"
+    )
     # policy.set_eps(1)
     train_collector.collect(n_step=64 * 10)  # batch size * training_num
 
@@ -122,13 +125,17 @@ if __name__ == "__main__":
     stop_fn = None
 
     def train_fn(epoch, env_step):
-        policy.policies[agents[1]].set_eps(0.1)
+        for agent in agents:
+            policy.policies[agent].set_eps(0.1)
+        # policy.policies[agents[1]].set_eps(0.1)
 
     def test_fn(epoch, env_step):
-        policy.policies[agents[1]].set_eps(0.05)
+        for agent in agents:
+            policy.policies[agent].set_eps(0.05)
+        # policy.policies[agents[1]].set_eps(0.05)
 
     def reward_metric(rews):
-        return rews[:, 1]
+        return rews
 
     # ======== Step 5: Run the trainer =========
     result = offpolicy_trainer(
@@ -147,7 +154,7 @@ if __name__ == "__main__":
         update_per_step=0.1,
         test_in_train=False,
         reward_metric=reward_metric,
-    )
+    )  # avg reward = total reward / (max_epoch*step_per_epoch*nb_agents)
 
     # return result, policy.policies[agents[1]]
     print(f"\n==========Result==========\n{result}")
