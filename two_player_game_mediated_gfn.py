@@ -22,7 +22,7 @@ from games import (
     Chicken,
 )
 from dilemma_pettingzoo import raw_env, env, parallel_env
-from agents.agent import Agent
+from agents.DQN_agent import Agent
 from agents.mediator import Mediator
 from agents.utils import batchify_obs, batchify, unbatchify
 from config import parse_args

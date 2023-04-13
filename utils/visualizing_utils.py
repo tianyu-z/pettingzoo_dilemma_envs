@@ -538,6 +538,10 @@ class LimitedStack:
         return len(self.lst)
 
 
+dict_addition_by_key = lambda x, y: {
+    k: x.get(k, 0) + y.get(k, 0) for k in set(x) & set(y)
+}
+
 if __name__ == "__main__":
     # test create gif
     # A = np.random.rand(100, 10)

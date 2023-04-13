@@ -22,7 +22,7 @@ from games import (
     Chicken,
 )
 from dilemma_pettingzoo import raw_env, env, parallel_env
-from agents.agent import Agent
+from agents.DQN_agent import Agent
 from agents.torch_transformer import Mediator
 from agents.utils import batchify_obs, batchify, unbatchify, AttrDict
 from config import parse_args
@@ -39,7 +39,6 @@ med_message_size = 2  # 2 bits
 #####################
 
 if __name__ == "__main__":
-
     parser = parse_args(return_parser=True)
     # Create the parser
 
@@ -190,10 +189,8 @@ if __name__ == "__main__":
     """ TRAINING LOGIC """
     # train for n number of episodes
     for episode in range(args.total_episodes):
-
         # collect an episode
         with torch.no_grad():
-
             # collect observations and convert to batch of torch tensors
             next_obs = env.reset()
             # reset the episodic return
@@ -334,13 +331,11 @@ if __name__ == "__main__":
             np.random.shuffle(b_index)
             len_b_obs = len(b_obs)
             for start in range(0, len(b_obs), args.batch_size):
-
                 # select the indices we want to train on
                 end = start + args.batch_size
                 batch_index = b_index[start:end]
 
                 for idx, agent in enumerate(agents):
-
                     _, newlogprob, entropy, value = agents[agent].get_action_and_value(
                         b_obs[:, idx, :][batch_index],
                         b_actions[:, idx].long()[batch_index],
