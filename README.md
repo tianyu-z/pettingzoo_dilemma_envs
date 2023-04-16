@@ -1,4 +1,7 @@
 # pettingzoo_dilemma_envs
+
+Acknowledge: The code in the rllib branch is modified from Marco Jiralerspong.  
+
 ## How to test envs?
 - for Prisoners_Dilemma, Samaritans_Dilemma, Stag_Hunt, Chicken
 ```python
