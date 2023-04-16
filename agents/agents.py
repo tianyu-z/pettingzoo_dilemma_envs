@@ -6,6 +6,10 @@ from torch.distributions import MultivariateNormal
 from utils.config_utils import ConfigObjectFactory
 from gymnasium.spaces import Discrete
 from gymnasium.spaces import Box
+from policy.qmix import QMix
+from policy.centralized_ppo import CentralizedPPO
+from policy.independent_ppo import IndependentPPO
+from policy.decentralized_ppo import DecentralizedPPO
 
 
 class Baseline_Agents:
@@ -23,20 +27,14 @@ class Baseline_Agents:
 
         # 下面三个算法作为baseline
         if self.env_config.learn_policy == "qmix":
-            from policy.qmix import QMix
-
             self.n_actions = self.env_info["n_actions"]
             self.policy = QMix(self.env_info)
 
         elif self.env_config.learn_policy == "centralized_ppo":
-            from policy.centralized_ppo import CentralizedPPO
-
             self.action_space = self.env_info["action_space"]
             self.policy = CentralizedPPO(self.env_info)
 
         elif self.env_config.learn_policy == "independent_ppo":
-            from policy.independent_ppo import IndependentPPO
-
             self.action_space = self.env_info["action_space"]
             self.policy = IndependentPPO(self.env_info)
 

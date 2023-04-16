@@ -5,7 +5,7 @@ class EnvironmentConfig:
         self.num_actions = 2
         self.grid_size = 16
         self.max_cycles = 25
-        self.learn_policy = "grid_wise_control"
+        self.learn_policy = "decentralized_ppo"
         self.game = "pd"
 
     def __str__(self):
