@@ -4,3 +4,4 @@ torch
 torchvision
 pettingzoo
 gymnasium
+ray[rllib]
