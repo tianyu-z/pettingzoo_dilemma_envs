@@ -4,4 +4,4 @@ torch
 torchvision
 pettingzoo
 gymnasium
-ray[rllib]
+ray[rllib]==2.2.0
