@@ -5,6 +5,26 @@ import torch
 import os
 import glob
 import time
+from collections import Counter
+
+
+def tokenize_actions(game=None):
+    actionspair2int = {(0, 0): 0, (0, 1): 1, (1, 0): 2, (1, 1): 3}
+    # key: (action1, action2), value: a token to represent the pair
+    actionint2pair = {v: k for k, v in actionspair2int.items()}
+    # key: a token to represent the pair, value: (action1, action2)
+    actionspair2str = {(0, 0): "CC", (0, 1): "CD", (1, 0): "DC", (1, 1): "DD"}
+    # key: (action1, action2), value: a string to represent the pair C: cooperate, D: defect
+    actionstr2pair = {v: k for k, v in actionspair2str.items()}
+    # key: a string to represent the pair C: cooperate, D: defect, value: (action1, action2)
+    if game is None:
+        int_payoff = None
+    else:
+        int_payoff = {actionspair2int[k]: v for k, v in game.payoff.items()}
+        int_payoff[4] = (0, 0)  # None, None is a tie
+        int_payoff[5] = (0, 0)
+    # key: a token to represent the pair, value: (reward1, reward2)
+    return actionspair2int, actionint2pair, actionspair2str, actionstr2pair, int_payoff
 
 
 # Sample data
@@ -289,7 +309,244 @@ def delete_oldest_files(directory, max_count, prefix="checkpoint"):
         os.remove(file_list[i])
 
 
+(
+    actionspair2int,
+    actionint2pair,
+    actionspair2str,
+    actionstr2pair,
+    int_payoff,
+) = tokenize_actions(None)
+
+
+def tokenize_actions_dict(loaded):
+    """
+    Args:
+        loaded: a dict of loaded data
+        e.g. loaded = {"player_0_actions": [1,1,1], "player_1_actions": [0,0,0],
+                        "player_0_rewards": [...], "player_1_rewards": [...]}
+    Return:
+        str_tokenized_actions_list: a list of string tokenized actions e.g. ["DD", "CC", ...]
+        num_tokenized_actions_list: a list of number tokenized actions e.g. [3, 0 , ...]
+        action_summary: a Counter object of the action summary e.g. {"CC": 10, "CD": 20, "DC": 30, "DD": 40}
+    """
+    actions = []
+    action_counts = 0
+    for k in loaded.keys():
+        if "action" in k:
+            action_counts += 1
+    for i in range(action_counts):
+        actions.append(loaded[f"player_{i}_actions"])
+    str_tokenized_actions_list = [
+        actionspair2str[action_pair] for action_pair in zip(*actions)
+    ]
+    num_tokenized_actions_list = [
+        actionspair2int[action_pair] for action_pair in zip(*actions)
+    ]
+    action_summary = Counter(str_tokenized_actions_list)
+    return str_tokenized_actions_list, num_tokenized_actions_list, action_summary
+
+
+def get_acc_freq(loaded, interested_action):
+    """
+    Find the accumulative frequency of a specific pairs of actions (like "CC", "CD", "DC", "DD")
+    Args:
+        loaded: a list of loaded data
+        interested_action: if not None, only plot the accumulative frequency of this action
+    Return:
+        acc_freqs: a dict of accumulative frequency of actions
+    e.g. input: loaded = {"player_0_actions": [1,1,1], "player_1_actions": [0,0,0],
+                        "player_0_rewards": [...], "player_1_rewards": [...]}
+
+    """
+    (
+        str_tokenized_actions_list,
+        num_tokenized_actions_list,
+        action_summary,
+    ) = tokenize_actions_dict(loaded)
+    acc_freq = []
+    if interested_action is None or interested_action == "":
+        interested_actions = action_summary.keys()
+    else:
+        interested_actions = [interested_action]
+    acc_freqs = {}
+    for i_a in interested_actions:
+        acc_freq = []
+        for i in range(len(str_tokenized_actions_list)):
+            window = str_tokenized_actions_list[0 : i + 1]
+            count = window.count(i_a)
+            acc_freq.append(count)
+        acc_freqs[i_a] = acc_freq
+    return acc_freqs, interested_actions
+
+
+def plot_action_accumulative_frequency(
+    loaded,
+    plot_bounds=False,
+    interested_action=None,
+    beta=1.96,
+    include_y_eq_x=False,
+    save_path=None,
+):
+    """Plot the accumulative frequency of actions
+    Args:
+        loaded: a list of loaded data, it is from the loaded checkpoints from the two_player_game.py
+        plot_bounds: if True, plot the upper and lower bounds of the mean
+        interested_action: if not None, only plot the accumulative frequency of this action
+        beta: the beta value for the upper and lower bounds (lower = mean - beta * std; upper = mean + beta * std),
+             default to 1.96 for 95% confidence interval
+    """
+    loaded_address = None
+    if isinstance(loaded, str):
+        loaded_address = loaded + "_plot_bounds_" + str(plot_bounds)
+        loaded = load_pt(loaded)
+    if not isinstance(loaded, list):
+        loaded = [loaded]
+    tmp = []
+    for l in loaded:
+        tmp_acc_freqs, interested_actions = get_acc_freq(l, interested_action)
+        tmp.append(tmp_acc_freqs)
+    acc_freqs, acc_freqs_upper, acc_freqs_lower = compute_mean_std_dict(tmp, beta)
+    # Plot
+    for i_a in interested_actions:
+        plt.plot(
+            list(range(len(acc_freqs[i_a]))),
+            acc_freqs[i_a],
+            label=i_a + str(": ") + str(acc_freqs[i_a][-1]),
+        )
+        if plot_bounds:
+            plt.plot(list(range(len(acc_freqs_lower[i_a]))), acc_freqs_lower[i_a])
+            plt.plot(list(range(len(acc_freqs_upper[i_a]))), acc_freqs_upper[i_a])
+            plt.fill_between(
+                list(range(len(acc_freqs[i_a]))),
+                acc_freqs_lower[i_a],
+                acc_freqs_upper[i_a],
+                alpha=0.2,
+            )
+    if include_y_eq_x:
+        plt.plot(
+            list(range(len(acc_freqs[i_a]))),
+            list(range(len(acc_freqs[i_a]))),
+            label="y=x",
+        )
+    plt.legend()
+    # Add labels and title
+    plt.xlabel("Time")
+    plt.ylabel(f"accumulative frequency of action {interested_action}")
+    plt.title("accumulative frequency")
+    if save_path is not None:
+        plt.savefig(save_path)
+    elif loaded_address is not None:
+        plt.savefig(loaded_address + ".png")
+    plt.show()
+    if plot_bounds:
+        return acc_freqs, acc_freqs_lower, acc_freqs_upper
+    else:
+        return acc_freqs, None, None
+
+
+def compute_mean_std_dict(input_dicts, beta=1.96):
+    """
+    Compute the mean and standard deviation of a list of dictionaries
+    Args:
+        input_dicts: a list of dictionaries
+        beta: the beta value for the upper and lower bounds (lower = mean - beta * std; upper = mean + beta * std),
+             default to 1.96 for 95% confidence interval
+    Returns:
+        mean_dicts: a dictionary of the mean of each key
+        upper_dicts: a dictionary of the upper bound of each key
+        lower_dicts: a dictionary of the lower bound of each key
+    """
+    # Initialize an empty dictionary to accumulate the lists
+    accumulated_lists = {}
+
+    # Iterate over the dictionaries in A and accumulate the lists by key
+    for dict_elem in input_dicts:
+        for key, val in dict_elem.items():
+            if key not in accumulated_lists:
+                accumulated_lists[key] = []
+            accumulated_lists[key].append(val)
+
+    # Compute the mean of each accumulated list using numpy
+    mean_dicts = {}
+    upper_dicts = {}
+    lower_dicts = {}
+    for key, lists in accumulated_lists.items():
+        mean_dicts[key] = np.mean(lists, axis=0).tolist()
+        upper_dicts[key] = (
+            np.mean(lists, axis=0) + beta * np.std(lists, axis=0)
+        ).tolist()
+        lower_dicts[key] = (
+            np.mean(lists, axis=0) - beta * np.std(lists, axis=0)
+        ).tolist()
+    return mean_dicts, upper_dicts, lower_dicts
+
+
+def get_error_bounds(loaded, beta=1.96):
+    """
+    Compute the mean and standard deviation of a list of list
+    Args:
+        loaded: a list of list
+        beta: the beta value for the upper and lower bounds (lower = mean - beta * std; upper = mean + beta * std),
+    Returns:
+        mean_ts: a list of the mean of each key
+        upper_error_bounds: a list of the upper bound of each key
+        lower_error_bounds: a list of the lower bound of each key
+    """
+    loaded = np.array(loaded)
+    assert len(loaded.shape) == 2, "loaded must be a 2D array"
+    mean_ts = np.mean(loaded, axis=0)
+    std_ts = np.std(loaded, axis=0)
+    upper_error_bounds = mean_ts + beta * std_ts
+    lower_error_bounds = mean_ts - beta * std_ts
+    return mean_ts, upper_error_bounds, lower_error_bounds
+
+
+class LimitedStack:
+    """
+    e.g.
+    s = Stack()
+    s.push(1)
+    s.push(2)
+    s.push(3)
+    print(s.pop())  # Output: 3
+    print(s.peek())  # Output: 2
+    print(s.is_empty())  # Output: False
+
+    Description:
+    when the max_len is negative, it is unlimited
+    """
+
+    def __init__(self, max_len):
+        self.lst = []
+        self.max_len = max_len
+
+    def push(self, item):
+        self.lst.append(item)
+        if self.max_len < 0:
+            return
+        elif len(self.lst) > self.max_len:
+            self.lst.pop(0)
+            return
+
+    def pop(self):
+        return self.lst.pop()
+
+    def is_empty(self):
+        return len(self.lst) == 0
+
+    def __len__(self):
+        return len(self.lst)
+
+
 if __name__ == "__main__":
-    A = np.random.rand(100, 10)
-    B = np.random.rand(10)
-    create_gif(A, B, title="test", filename="test.gif")
+    # test create gif
+    # A = np.random.rand(100, 10)
+    # B = np.random.rand(10)
+    # create_gif(A, B, title="test", filename="test.gif")
+    # test plot accumulative graph
+    # loaded = load_pt(
+    #     "loggings.pt"
+    # )  # this is from the two_player_game.py, we save the evaluation results in this file
+    plot_action_accumulative_frequency(
+        "agents_loggings/two_agent_no_mediator_loggings_eval.pt", plot_bounds=False
+    )

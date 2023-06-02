@@ -151,3 +151,22 @@ class Chicken(Game):
         Returns the payoff matrix for the Chicken game.
         """
         return self.payoff
+
+
+def get_game_class(name="prisoners_dilemma"):
+    """
+    Returns the game class corresponding to the specified name.
+    """
+    if name.lower() == "prisoners_dilemma" or name.lower() == "pd":
+        return Prisoners_Dilemma
+    elif name.lower() == "samaritans_dilemma" or name.lower() == "sd":
+        return Samaritans_Dilemma
+    elif name.lower() == "stag_hunt" or name.lower() == "sh":
+        return Stag_Hunt
+    elif name.lower() == "chicken" or name.lower() == "ch":
+        return Chicken
+    else:
+        raise ValueError("Invalid game name: %s" % name)
+
+
+7

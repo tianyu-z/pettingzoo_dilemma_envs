@@ -9,24 +9,8 @@ from games import (
 )
 from copy import deepcopy
 from itertools import product
-from utils import create_gif, plot_dict, get_top_k
+from utils import create_gif, plot_dict, get_top_k, tokenize_actions
 from gfn_config import get_merged_args
-
-
-def tokenize_actions(game):
-    actionspair2int = {(0, 0): 0, (0, 1): 1, (1, 0): 2, (1, 1): 3}
-    # key: (action1, action2), value: a token to represent the pair
-    actionint2pair = {v: k for k, v in actionspair2int.items()}
-    # key: a token to represent the pair, value: (action1, action2)
-    actionspair2str = {(0, 0): "CC", (0, 1): "CD", (1, 0): "DC", (1, 1): "DD"}
-    # key: (action1, action2), value: a string to represent the pair C: cooperate, D: defect
-    actionstr2pair = {v: k for k, v in actionspair2str.items()}
-    # key: a string to represent the pair C: cooperate, D: defect, value: (action1, action2)
-    int_payoff = {actionspair2int[k]: v for k, v in game.payoff.items()}
-    # key: a token to represent the pair, value: (reward1, reward2)
-    int_payoff[4] = (0, 0)  # None, None is a tie
-    int_payoff[5] = (0, 0)
-    return actionspair2int, actionint2pair, actionspair2str, actionstr2pair, int_payoff
 
 
 def reward_func(game, actions, is_sum_agent_rewards=False, only_last=False):
